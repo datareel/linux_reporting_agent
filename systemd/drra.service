@@ -1,0 +1,33 @@
+[Unit]
+Description=DataReel Reporting Agent for Linux
+Documentation=file:///usr/share/doc/linux_reporting_agent/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/drra run
+# Starts the next report now; settings are read again every cycle
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=60
+# Scans and dnf run at low priority
+Nice=10
+IOSchedulingClass=idle
+
+# Runs as root to read the package database, SELinux, firewalld and
+# sshd settings and the DMI serial number. /usr, /boot and /etc are read
+# only; dnf still updates its cache in /var.
+ProtectSystem=full
+ReadWritePaths=-/var/lib/drra -/var/log/drra
+PrivateTmp=yes
+ProtectHome=read-only
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target
