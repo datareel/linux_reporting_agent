@@ -279,8 +279,9 @@ bool UploadSendNowRequested(const AgentConfig &cfg)
 }
 
 // Payload files waiting in a spool folder, oldest first. Names starting
-// with "." (meta and temporary files) and files changed in the last two
-// seconds (still being written) wait.
+// with "." (meta and temporary files) are skipped. Files changed in the
+// last two seconds may still be written and wait, except files from
+// drra submit (they have a meta file and arrive complete by rename).
 static std::vector<std::string> PendingFiles(const std::string &dir)
 {
   std::vector<std::pair<long long, std::string> > files;
@@ -290,7 +291,7 @@ static std::vector<std::string> PendingFiles(const std::string &dir)
     struct stat st;
     std::string path = JoinPath(dir, name);
     if(lstat(path.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) continue;
-    if(now - st.st_mtime < 2) continue;
+    if(now - st.st_mtime < 2 && !FileExists(JoinPath(dir, "." + name + ".meta"))) continue;
     files.push_back(std::make_pair((long long)st.st_mtime, name));
   }
   std::sort(files.begin(), files.end());
