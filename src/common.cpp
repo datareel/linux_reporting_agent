@@ -64,7 +64,7 @@ void SetDefaultAgentConfig(AgentConfig &cfg)
   cfg.updates_refresh_hours = 24;
   cfg.command_timeout_seconds = 300;
 
-  cfg.scan_enabled = true;
+  cfg.scan_enabled = false;
   cfg.scan_interval_hours = 24;
   cfg.scan_source = "auto";
   cfg.oval_feed_url.clear();

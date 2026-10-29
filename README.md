@@ -31,8 +31,10 @@ plugins); the agent is for hosts it cannot reach.
 
 ## Vulnerability scans
 
-Once a day the agent lists the Red Hat security advisories (RHSA) that
-the installed packages still need:
+The scans are off by default. Turn them on with `[scan] enabled=1` in
+`/etc/drra/drra.ini` and `systemctl reload drra`. Then once a day the
+agent lists the Red Hat security advisories (RHSA) that the installed
+packages still need:
 
 * **RHEL 8 and 9:** OpenSCAP, `oscap oval eval` against Red Hat's OVAL
   feed (security.access.redhat.com/data/oval/v2). The feed is
@@ -59,7 +61,7 @@ example `cis_server_l1` or `stig` (needs `scap-security-guide`).
 ```
 # dnf install ./linux_reporting_agent-1.0-0.beta1.el9.x86_64.rpm
 # dnf install openscap-scanner          # RHEL 8 and 9 scans
-# vi /etc/drra/drra.ini                 # [https] host, enrollment_token
+# vi /etc/drra/drra.ini                 # [https] host, enrollment_token, [scan] enabled=1
 # drra report | less                    # look at a report, nothing is sent
 # drra fingerprint                      # key fingerprint for admin.php
 # systemctl enable --now drra
