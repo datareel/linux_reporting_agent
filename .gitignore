@@ -1,0 +1,4 @@
+/drra
+src/*.o
+/rpmbuild/
+/output/
