@@ -460,9 +460,11 @@ int RunCommand(const std::vector<std::string> &argv, int timeout_seconds, Comman
     envp.push_back(NULL);
     if(run_as) {
       // Never run as root by mistake when the switch fails
-      if(initgroups(run_as->name.c_str(), (gid_t)run_as->gid) != 0) _exit(126);
-      if(setgid((gid_t)run_as->gid) != 0) _exit(126);
-      if(setuid((uid_t)run_as->uid) != 0) _exit(126);
+      if(initgroups(run_as->name.c_str(), (gid_t)run_as->gid) != 0 || setgid((gid_t)run_as->gid) != 0 ||
+	 setuid((uid_t)run_as->uid) != 0) {
+	dprintf(2, "drra: cannot switch to user %s: %s\n", run_as->name.c_str(), strerror(errno));
+	_exit(126);
+      }
       if(!run_as->home.empty() && chdir(run_as->home.c_str()) != 0 && chdir("/") != 0) _exit(126);
     }
     execvpe(args[0], args.data(), envp.data());
