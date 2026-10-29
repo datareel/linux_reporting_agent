@@ -96,7 +96,7 @@ if [ "${DRSM_CONFIG}" != "" ]; then
 SetEnv LRA_SERVER_INI ${DATA_DIR}/server.ini
 
 # Only included by the other pages
-<FilesMatch "^(lra_(lib|auth)|vex_sync)\.php$">
+<FilesMatch "^(lra_(lib|auth)|hook_lib|vex_sync)\.php$">
     Require all denied
 </FilesMatch>
 
@@ -109,7 +109,7 @@ else
 SetEnv LRA_SERVER_INI ${DATA_DIR}/server.ini
 
 # Only included by the other pages
-<FilesMatch "^(lra_(lib|auth)|vex_sync)\.php$">
+<FilesMatch "^(lra_(lib|auth)|hook_lib|vex_sync)\.php$">
     Require all denied
 </FilesMatch>
 
