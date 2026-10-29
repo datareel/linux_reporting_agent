@@ -79,7 +79,7 @@ write_file() {
     fi
 }
 
-run mkdir -p "${WEB_DIR}/upload" "${DATA_DIR}/agents" "${DATA_DIR}/nonces" "${DATA_DIR}/reports"
+run mkdir -p "${WEB_DIR}/upload" "${DATA_DIR}/agents" "${DATA_DIR}/nonces" "${DATA_DIR}/reports" "${DATA_DIR}/hooks"
 
 echo "Copying pages to ${WEB_DIR}/upload"
 for f in ${PAGES}; do
@@ -165,8 +165,9 @@ fi
 cat <<EOF
 
 Next steps:
- - Let the web server user write to ${DATA_DIR}, for example:
-     setfacl -R -m u:apache:rwX -m d:u:apache:rwX ${DATA_DIR}
+ - Let the web server user write to ${DATA_DIR}, and the DRSM user
+   ($(whoami) here) read what it writes (hook uploads), for example:
+     setfacl -R -m u:apache:rwX -m d:u:apache:rwX -m d:u:$(whoami):rX ${DATA_DIR}
    With SELinux enforcing, also:
      semanage fcontext -a -t httpd_sys_rw_content_t "${DATA_DIR}(/.*)?"
      restorecon -R ${DATA_DIR}
