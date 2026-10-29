@@ -1,12 +1,12 @@
 # DataReel Reporting Agent for Linux
 # Build with: make          Install with: make install DESTDIR=...
-# Needs: gcc-c++ openssl-devel libcurl-devel libxml2-devel bzip2-devel
+# Needs: gcc-c++ openssl-devel libcurl-devel libxml2-devel bzip2-devel zlib-devel
 
 CXX      ?= g++
 CXXFLAGS ?= -O2 -g -Wall -Wextra -Wno-unused-parameter
 # Kept apart from CXXFLAGS, so "make CXXFLAGS=..." (rpmbuild) keeps them
 AGENT_CXXFLAGS = -std=c++17 $(shell pkg-config --cflags libxml-2.0)
-LIBS      = -lssl -lcrypto -lcurl -lbz2 $(shell pkg-config --libs libxml-2.0)
+LIBS      = -lssl -lcrypto -lcurl -lbz2 -lz $(shell pkg-config --libs libxml-2.0)
 
 PREFIX     ?= /usr
 SBINDIR    ?= $(PREFIX)/sbin

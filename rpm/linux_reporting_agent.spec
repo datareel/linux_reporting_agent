@@ -13,9 +13,9 @@ URL:            https://datareel.com/
 Source0:        %{name}-%{agent_version}.tar.gz
 
 BuildRequires:  gcc-c++ make pkgconf-pkg-config
-BuildRequires:  openssl-devel libcurl-devel libxml2-devel bzip2-devel
+BuildRequires:  openssl-devel libcurl-devel libxml2-devel bzip2-devel zlib-devel
 BuildRequires:  systemd-rpm-macros
-Requires:       openssl-libs libcurl libxml2 bzip2-libs
+Requires:       openssl-libs libcurl libxml2 bzip2-libs zlib
 # OVAL vulnerability scans (RHEL 8 and 9) and compliance scans
 Recommends:     openscap-scanner
 Suggests:       scap-security-guide samba-client openssh-clients
@@ -26,8 +26,8 @@ The DataReel Reporting Agent for Linux runs as a systemd service and
 sends a report about the host every 15 minutes: system and hardware,
 CPU, memory, disk and network use, logged in users, SELinux, firewall
 and SSH settings, failed services, pending updates, the Red Hat
-security advisories that apply (OpenSCAP OVAL scan or dnf updateinfo)
-and the installed packages. Reports go to a web server as signed HTTPS
+security advisories that apply (OpenSCAP OVAL scan, Red Hat CSAF/VEX
+data or dnf updateinfo) and the installed packages. Reports go to a web server as signed HTTPS
 uploads, or to a CIFS share or SCP server. The host only makes outgoing
 connections, so it can be monitored over the internet. DataReel System
 Monitor (DRSM) reads the reports with its linux plugins.
@@ -66,4 +66,5 @@ cp -a php drsm %{buildroot}%{_docdir}/%{name}/
 %changelog
 * Thu Oct 29 2026 DataReel Software Development - 1.0-0.beta1
 - First beta: C++ agent, signed HTTPS uploads, CIFS and SCP delivery,
-  OpenSCAP OVAL and dnf vulnerability scans, compliance scans, DRSM plugins
+  OpenSCAP OVAL, CSAF/VEX (RHEL 10) and dnf vulnerability scans,
+  compliance scans, DRSM plugins

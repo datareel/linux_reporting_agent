@@ -32,12 +32,15 @@
 # DRSM plugin: the VULNERABILITIES and COMPLIANCE sections of the last
 # DataReel Reporting Agent for Linux report. The agent scans once a day:
 # OpenSCAP (oscap oval eval) against Red Hat's OVAL feed on RHEL 8 and
-# 9, dnf updateinfo on RHEL 10, which has no OVAL feed. Both list the
-# Red Hat security advisories (RHSA) the installed packages still need.
+# 9; on RHEL 10, which has no OVAL feed, the report server's index of
+# Red Hat's CSAF/VEX files (php/vex_sync.php), or dnf updateinfo. All
+# list the Red Hat security advisories (RHSA) the installed packages
+# still need. CSAF/VEX also lists the CVEs with no fix yet (unfixed).
 #
 # The Vulnerabilities page reads the "VULN kind|field|..." lines:
-#   VULN summary|source|scan_etime|critical|important|moderate|low|unknown|total|cves|status
+#   VULN summary|source|scan_etime|critical|important|moderate|low|unknown|total|cves|status|unfixed
 #   VULN advisory|id|severity|issued|cves|packages|title
+#   VULN unfixed|cve|severity|packages|state
 #   VULN compliance|profile|score|pass|fail|scan_etime
 #   VULN rule|rule|severity
 #
@@ -52,6 +55,7 @@ WARN_SEVERITY=$(drsm_setting WARN_SEVERITY Important)
 SCAN_MAX_AGE_DAYS=$(drsm_setting SCAN_MAX_AGE_DAYS 3)
 COMPLIANCE_MIN_SCORE=$(drsm_setting COMPLIANCE_MIN_SCORE "")
 MAX_LIST=$(drsm_setting MAX_LIST 300)
+UNFIXED_WARN_SEVERITY=$(drsm_setting UNFIXED_WARN_SEVERITY Critical)
 if drsm_is_none "${COMPLIANCE_MIN_SCORE}"; then COMPLIANCE_MIN_SCORE=""; fi
 
 function sev_rank()
@@ -105,11 +109,12 @@ if [ "${scan_age}" != "" ] && [ "${scan_age}" -gt "${SCAN_MAX_AGE_DAYS}" ]; then
 fi
 
 crit=${V[critical]:-0}; imp=${V[important]:-0}; mod=${V[moderate]:-0}; low=${V[low]:-0}; unk=${V[unknown]:-0}
-total=${V[total]:-0}; cves=${V[cves]:-0}
+total=${V[total]:-0}; cves=${V[cves]:-0}; unfixed=${V[unfixed]:-}
 summary="${total} security advisories apply: ${crit} critical, ${imp} important, ${mod} moderate, ${low} low, ${cves} CVEs (${src} scan)"
+if [ "${unfixed}" != "" ]; then summary="${summary}, ${unfixed} CVEs with no fix yet"; fi
 echo "${summary}"
-drsm_detail "Vulnerabilities" "${crit} critical, ${imp} important, ${mod} moderate, ${low} low"
-echo "VULN summary|${src}|${scan_etime}|${crit}|${imp}|${mod}|${low}|${unk}|${total}|${cves}|ok"
+drsm_detail "Vulnerabilities" "${crit} critical, ${imp} important, ${mod} moderate, ${low} low${unfixed:+, ${unfixed} unfixed}"
+echo "VULN summary|${src}|${scan_etime}|${crit}|${imp}|${mod}|${low}|${unk}|${total}|${cves}|ok|${unfixed}"
 
 crank=$(sev_rank "${CRIT_SEVERITY}")
 wrank=$(sev_rank "${WARN_SEVERITY}")
@@ -139,6 +144,25 @@ echo ""
 lra_section "VULNERABILITIES" "${REPORT}" | sed -n 's/^advisory //p' | lra_kv id severity issued cves packages title | head -n "${MAX_LIST}" |
     awk -F'\t' '{ gsub(/\|/, "/", $6); printf "VULN advisory|%s|%s|%s|%s|%s|%s\n", $1, $2, $3, $4, $5, $6 }'
 if [ "${total}" -gt "${MAX_LIST}" ]; then echo "Only the first ${MAX_LIST} of ${total} advisories are listed"; fi
+
+# CVEs Red Hat lists as affecting installed packages with no update
+# yet. Nothing to install, so at most a warning, for the worst ones.
+if [ "${unfixed:-0}" -gt 0 ]; then
+    urank=$(sev_rank "${UNFIXED_WARN_SEVERITY}")
+    worst=$(lra_section "VULNERABILITIES" "${REPORT}" | sed -n 's/^unfixed //p' | lra_kv severity |
+	awk -v r="${urank}" '
+	    { s = tolower($1); k = (s == "critical") ? 0 : (s == "important") ? 1 : (s == "moderate") ? 2 : (s == "low") ? 3 : 4
+	      if (k <= r) n++ }
+	    END { print n + 0 }')
+    echo ""
+    echo "${unfixed} CVEs affect installed packages and have no fix from Red Hat yet"
+    if [ "${urank}" -lt 9 ] && [ "${worst}" -gt 0 ]; then
+	drsm_warn "${LRA_HOST} has ${worst} ${UNFIXED_WARN_SEVERITY} or worse CVEs with no fix yet"
+    fi
+    lra_section "VULNERABILITIES" "${REPORT}" | sed -n 's/^unfixed //p' | lra_kv cve severity packages state | head -n "${MAX_LIST}" |
+	awk -F'\t' '{ gsub(/\|/, "/", $4); printf "VULN unfixed|%s|%s|%s|%s\n", $1, $2, $3, $4 }'
+    drsm_metric vuln_unfixed "${unfixed}"
+fi
 
 # Compliance scan, when the agent runs one
 if lra_has_section "COMPLIANCE" "${REPORT}"; then

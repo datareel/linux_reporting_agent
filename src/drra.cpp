@@ -214,6 +214,11 @@ int main(int argc, char **argv)
       rv = 1;
     }
   }
+  else if(command == "vercmp" && optind + 2 < argc) {
+    // vercmp A B: how the CSAF scan compares package versions
+    int c = RpmEvrCmp(argv[optind + 1], argv[optind + 2]);
+    printf("%d\n", c);
+  }
   else if(command == "config") {
     if(!output.empty()) fputs(output.c_str(), stderr);
     std::string methods;
@@ -229,8 +234,8 @@ int main(int argc, char **argv)
 	   cfg.scp_remote_dir.c_str());
     printf("[agent] report_interval_minutes=%d report_dir=%s data_dir=%s log_file=%s check_updates=%d\n",
 	   cfg.report_interval_minutes, cfg.report_dir.c_str(), cfg.data_dir.c_str(), cfg.log_file.c_str(), cfg.check_updates);
-    printf("[scan] enabled=%d interval_hours=%d source=%s oval_feed_url=%s compliance_profile=%s\n",
-	   cfg.scan_enabled, cfg.scan_interval_hours, cfg.scan_source.c_str(), cfg.oval_feed_url.c_str(),
+    printf("[scan] enabled=%d interval_hours=%d source=%s oval_feed_url=%s csaf_index_url=%s compliance_profile=%s\n",
+	   cfg.scan_enabled, cfg.scan_interval_hours, cfg.scan_source.c_str(), cfg.oval_feed_url.c_str(), cfg.csaf_index_url.c_str(),
 	   cfg.compliance_profile.c_str());
   }
   else {

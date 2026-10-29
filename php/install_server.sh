@@ -7,7 +7,8 @@
 #
 #   WEB_DIR   Web directory for the pages, for example
 #             /var/www/html/linux. The pages go in WEB_DIR/upload/
-#             (register.php, upload.php, admin.php).
+#             (register.php, upload.php, admin.php, vex_index.php, and
+#             vex_sync.php for cron).
 #   DATA_DIR  Directory for server.ini, agent registrations and reports.
 #             Best outside the web root. If it is inside WEB_DIR (common on
 #             shared hosting), a "Require all denied" .htaccess is added.
@@ -47,7 +48,7 @@ fi
 WEB_DIR="${1%/}"
 DATA_DIR="${2%/}"
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
-PAGES="register.php upload.php admin.php lra_lib.php lra_auth.php"
+PAGES="register.php upload.php admin.php vex_index.php vex_sync.php lra_lib.php lra_auth.php"
 
 case "$WEB_DIR" in /*) ;; *) echo "WEB_DIR must be an absolute path"; exit 1 ;; esac
 case "$DATA_DIR" in /*) ;; *) echo "DATA_DIR must be an absolute path"; exit 1 ;; esac
@@ -95,7 +96,7 @@ if [ "${DRSM_CONFIG}" != "" ]; then
 SetEnv LRA_SERVER_INI ${DATA_DIR}/server.ini
 
 # Only included by the other pages
-<FilesMatch "^lra_(lib|auth)\.php$">
+<FilesMatch "^(lra_(lib|auth)|vex_sync)\.php$">
     Require all denied
 </FilesMatch>
 
@@ -108,7 +109,7 @@ else
 SetEnv LRA_SERVER_INI ${DATA_DIR}/server.ini
 
 # Only included by the other pages
-<FilesMatch "^lra_(lib|auth)\.php$">
+<FilesMatch "^(lra_(lib|auth)|vex_sync)\.php$">
     Require all denied
 </FilesMatch>
 
@@ -171,6 +172,11 @@ Next steps:
      restorecon -R ${DATA_DIR}
  - Edit ${DATA_DIR}/server.ini (enrollment token, approval policy)
  - Create the admin login if you have not: htpasswd -c -B ${DATA_DIR}/admin.htpasswd <user>
+ - RHEL 10 vulnerability data: run the CSAF/VEX sync once by hand (the first
+   run downloads about 400 MB and takes 15 to 30 minutes, needs zstd), then
+   daily from cron as the web server user, for example in /etc/cron.d:
+     30 5 * * * apache php ${WEB_DIR}/upload/vex_sync.php --releases 10 > /dev/null
+   (with LRA_SERVER_INI=${DATA_DIR}/server.ini in the environment)
  - Point the agents at the pages, in drra.ini [https]:
      upload_path   = <url path of ${WEB_DIR}>/upload/upload.php
      register_path = <url path of ${WEB_DIR}>/upload/register.php

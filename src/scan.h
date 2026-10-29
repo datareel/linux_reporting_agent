@@ -30,5 +30,7 @@ std::string ScanReportSections(const AgentConfig &cfg);
 // HTML reports from the last scan that the server has not received yet
 std::vector<FormFile> PendingScanHtml(const AgentConfig &cfg, const std::string &hostname);
 void ClearPendingScanHtml(const AgentConfig &cfg);
+// Compares epoch:version-release strings like rpm: -1, 0 or 1
+int RpmEvrCmp(const std::string &a, const std::string &b);
 
 #endif

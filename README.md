@@ -38,9 +38,16 @@ the installed packages still need:
   feed (security.access.redhat.com/data/oval/v2). The feed is
   downloaded only when it changes. The OpenSCAP HTML report goes to the
   server too.
-* **RHEL 10:** Red Hat publishes no OVAL feed for RHEL 10 (it moved to
-  CSAF/VEX), so the agent reads the same errata from `dnf updateinfo`.
-  EPEL advisories are included.
+* **RHEL 10:** Red Hat publishes no OVAL feed for RHEL 10, only CSAF/VEX
+  files (one JSON file per CVE, 400 MB in all). `php/vex_sync.php` runs
+  daily on the report server and builds a small index of the RHEL 10
+  packages each CVE is fixed in, and of the packages Red Hat lists as
+  affected with no fix yet. Agents download the index from
+  `vex_index.php` when it changes and compare it with their packages
+  using rpm's version rules. This also reports the CVEs that have no
+  update yet, which `dnf updateinfo` cannot. An agent with no report
+  server, or that cannot read the index, uses `dnf updateinfo` (the
+  same Red Hat errata, plus EPEL).
 
 `[scan] source=oval` with `oval_feed_url` forces OpenSCAP with any feed,
 for example a local copy on a host with no internet access. A
@@ -82,6 +89,10 @@ $ php/install_server.sh --apply --admin-user admin /var/www/html/linux /var/lib/
   OpenSCAP HTML reports, in `reports_dir`.
 * `admin.php` approves, revokes and deletes agents. It can use the DRSM
   dashboard login (`--drsm-login`).
+* `vex_sync.php` (cron, not a web page) builds the RHEL 10 CSAF/VEX
+  index that `vex_index.php` serves. The first run downloads Red Hat's
+  full VEX archive (about 400 MB, needs `zstd`); later runs fetch only
+  the CVE files that changed.
 
 The agent can also copy the report to a CIFS share (`smbclient`) or an
 SCP server (`[delivery] methods=https,scp`).
@@ -97,7 +108,8 @@ SCP server (`[delivery] methods=https,scp`).
   `resources` (CPU, load, memory, swap, disks, network, with the same
   metrics as the SSH plugins, so trends work), `updates`, `security`
   and `vulnerabilities` (an error for critical advisories, a warning
-  for important ones, an old or failed scan, a low compliance score).
+  for important ones, critical CVEs with no fix yet, an old or failed
+  scan, a low compliance score).
 * `utils/lra_hosts.sh`: makes a host file for every agent report.
 * `www/php/vulnerabilities.php`: the Vulnerabilities page, with every
   host's advisory counts, the advisories that affect the most hosts and
@@ -115,7 +127,7 @@ $LRAreportsDir = "/var/www/html/linux/reports";   // only where the uploads land
 ## Build
 
 ```
-# dnf install gcc-c++ make openssl-devel libcurl-devel libxml2-devel bzip2-devel
+# dnf install gcc-c++ make openssl-devel libcurl-devel libxml2-devel bzip2-devel zlib-devel
 $ make
 $ tools/build_rpms.sh          # RHEL 8, 9 and 10 RPMs in UBI containers (podman)
 $ tests/drsm_test.sh           # DRSM plugins and pages against a DRSM checkout

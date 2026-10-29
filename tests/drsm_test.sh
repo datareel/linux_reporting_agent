@@ -43,6 +43,14 @@ awk -v now="${now}" '
     /^END VULNERABILITIES/ { print; print ""; print "COMPLIANCE:"; print "profile=cis_server_l1"; print "scan_etime=" now; print "score=81.5"; print "pass=200 fail=2 notapplicable=10 notchecked=0 error=0"; print "fail rule=sshd_disable_root_login severity=medium"; print "fail rule=accounts_tmout severity=high"; print "END COMPLIANCE"; next }
     { gsub(/web1/, "db1"); print }' "${TOPdir}/tests/fixtures/web1_linux_report_agent.txt" > "${RPT}/db1_linux_report_agent.txt"
 echo '<html><body><script>document.title="scan"</script>OpenSCAP report</body></html>' > "${RPT}/db1_linux_scap_report.html"
+# app1: a CSAF/VEX scan with CVEs that have no fix yet
+awk -v now="${now}" '
+    /^ETIME: / { print "ETIME: " now; next }
+    /^source=/ { print "source=csaf"; next }
+    /^feed=/ { print "feed=https://reports.example.com/linux/upload/vex_index.php?rhel=10"; next }
+    /^critical=/ { print "critical=0 important=0 moderate=1 low=0 unknown=0 total=1 cves=1 unfixed=2"; next }
+    /^advisory / { if (!done) { print "advisory id=RHSA-2026:90328 severity=Moderate cves=CVE-2026-1111 packages=bind-libs<32:9.18.33-15.el10_2.13 title=\"Moderate: bind-libs security update\""; print "unfixed cve=CVE-2026-2222 severity=Critical packages=edk2-ovmf state=\"Affected\""; print "unfixed cve=CVE-2026-3333 severity=Low packages=firefox state=\"Will not fix\"" } done = 1; next }
+    { gsub(/web1/, "app1"); print }' "${TOPdir}/tests/fixtures/web1_linux_report_agent.txt" > "${RPT}/app1_linux_report_agent.txt"
 
 cat > "${T}/home/.drsm.sh" <<CONF
 export SITEID="LRATEST"
@@ -75,6 +83,9 @@ expect "web1 summary line" "${R}/web1/web1_report.txt" "VULN summary|dnf|"
 expect "db1 important advisory warns" "${R}/db1/db1_report.txt" "=== linux/vulnerabilities [WARNING]"
 expect "db1 compliance line" "${R}/db1/db1_report.txt" "VULN compliance|cis_server_l1|81.5|200|2|"
 expect "db1 skipped failed unit" "${R}/db1/db1_report.txt" "=== linux/security [OK]"
+expect "app1 unfixed critical warns" "${R}/app1/app1_report.txt" "has 1 Critical or worse CVEs with no fix yet"
+expect "app1 unfixed line" "${R}/app1/app1_report.txt" "VULN unfixed|CVE-2026-3333|Low|firefox|Will not fix"
+expect "app1 summary has the unfixed count" "${R}/app1/app1_report.txt" "|ok|2"
 
 cat > "${W}/config/drsm.php" <<PHPCONF
 <?php
@@ -108,6 +119,9 @@ expect "severity filter" "${T}/page.html" "RHSA-2026:77396"
 render vulnerabilities.php "n=db1"
 expect "host page compliance" "${T}/page.html" "accounts_tmout"
 expect "host page links the HTML report" "${T}/page.html" "scap_report.php?n=db1"
+render vulnerabilities.php "n=app1"
+expect "host page lists unfixed CVEs" "${T}/page.html" "CVE-2026-2222"
+expect "host page names the CSAF source" "${T}/page.html" "CSAF/VEX"
 render vulnerabilities.php "n=web1"
 expect "host page packages" "${T}/page.html" "ca-certificates-"
 render scap_report.php "n=db1&kind=scap"

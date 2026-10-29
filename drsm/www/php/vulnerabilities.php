@@ -91,14 +91,15 @@ function vuln_scan_text($v)
   if($v["status"] == "disabled") return "<span class=\"muted\">scan off</span>";
   if($v["status"] == "pending") return "<span class=\"muted\">first scan pending</span>";
   if($v["status"] == "failed") return drsm_badge("WARNING", " scan failed");
-  $src = $v["source"] == "oval" ? "OpenSCAP OVAL" : ($v["source"] == "dnf" ? "dnf updateinfo" : $v["source"]);
+  $names = array("oval" => "OpenSCAP OVAL", "csaf" => "CSAF/VEX", "dnf" => "dnf updateinfo");
+  $src = isset($names[$v["source"]]) ? $names[$v["source"]] : $v["source"];
   return drsm_time_html($v["scan_time"]) . " <span class=\"tag\">" . h($src) . "</span>";
 }
 ?>
 <section class="page-head">
   <div>
     <h1><?php echo $one ? h($one["host"]["name"]) . " vulnerabilities" : "Vulnerabilities"; ?></h1>
-    <p class="muted">Security advisories that apply to Linux agent hosts, from each host's daily OpenSCAP or dnf scan</p>
+    <p class="muted">Security advisories that apply to Linux agent hosts, from each host's daily OpenSCAP, CSAF/VEX or dnf scan</p>
   </div>
 <?php if($one) { ?>
   <div class="head-actions">
@@ -130,7 +131,9 @@ if($one === null) {
   $cves = array();
   $hosts_crit = 0;
   $oldest = 0;
+  $unfixed = array();
   foreach($vulns as $v) {
+    foreach($v["unfixed"] as $u) $unfixed[$u["cve"]] = $u["severity"];
     if($v["counts"]["Critical"] > 0) $hosts_crit++;
     if($v["scan_time"] > 0 && ($oldest == 0 || $v["scan_time"] < $oldest)) $oldest = $v["scan_time"];
   }
@@ -152,12 +155,13 @@ if($one === null) {
   <a class="kpi <?php echo $tot["Important"] > 0 ? "warn" : "ok"; ?>" href="<?php echo h(drsm_url("vulnerabilities.php", array("sev" => "Important"))); ?>#vuln-adv"><span class="kpi-label">Important</span><span class="kpi-value"><?php echo (int)$tot["Important"]; ?></span><span class="kpi-sub">advisories</span></a>
   <a class="kpi <?php echo $tot["Moderate"] + $tot["Low"] > 0 ? "stale" : "ok"; ?>" href="<?php echo h(drsm_url("vulnerabilities.php", array("sev" => "Moderate"))); ?>#vuln-adv"><span class="kpi-label">Moderate and low</span><span class="kpi-value"><?php echo (int)($tot["Moderate"] + $tot["Low"]); ?></span><span class="kpi-sub">advisories</span></a>
   <div class="kpi"><span class="kpi-label">CVEs</span><span class="kpi-value"><?php echo count($cves); ?></span><span class="kpi-sub">oldest scan <?php echo $oldest ? drsm_time_html($oldest) : "none"; ?></span></div>
+  <div class="kpi <?php echo in_array("Critical", $unfixed) ? "warn" : ""; ?>"><span class="kpi-label">No fix yet</span><span class="kpi-value"><?php echo count($unfixed); ?></span><span class="kpi-sub">CVEs, from CSAF/VEX scans</span></div>
 </section>
 <section class="panel flush">
   <div class="panel-head pad"><h2><?php echo drsm_icon("list"); ?>Hosts</h2><span class="muted small">Select a host for its advisories and packages</span></div>
   <div class="table-wrap">
     <table class="table">
-      <thead><tr><th scope="col">Host</th><th scope="col">State</th><th scope="col" class="num">Critical</th><th scope="col" class="num">Important</th><th scope="col" class="num">Moderate</th><th scope="col" class="num">Low</th><th scope="col" class="num">CVEs</th><th scope="col">Compliance</th><th scope="col">Last scan</th></tr></thead>
+      <thead><tr><th scope="col">Host</th><th scope="col">State</th><th scope="col" class="num">Critical</th><th scope="col" class="num">Important</th><th scope="col" class="num">Moderate</th><th scope="col" class="num">Low</th><th scope="col" class="num">CVEs</th><th scope="col" class="num">No fix</th><th scope="col">Compliance</th><th scope="col">Last scan</th></tr></thead>
       <tbody>
 <?php foreach($order as $key => $v) { $hst = $v["host"]; ?>
         <tr class="<?php echo $v["counts"]["Critical"] > 0 ? "row-err" : ""; ?>">
@@ -166,6 +170,7 @@ if($one === null) {
           <?php echo vuln_counts_cells($v); ?>
 
           <td class="num"><?php echo (int)$v["cves"]; ?></td>
+          <td class="num"><?php echo $v["nunfixed"] === null ? "<span class=\"muted\" title=\"Only CSAF/VEX scans list CVEs with no fix\">n/a</span>" : (int)$v["nunfixed"]; ?></td>
           <td class="small"><?php echo $v["compliance"] ? h($v["compliance"]["profile"] . " " . $v["compliance"]["score"]) : "<span class=\"muted\">none</span>"; ?></td>
           <td class="small"><?php echo vuln_scan_text($v); ?></td>
         </tr>
@@ -268,6 +273,26 @@ else {
     </table>
   </div>
 </section>
+<?php if(count($v["unfixed"]) > 0) { ?>
+<section class="panel flush">
+  <div class="panel-head pad"><h2><?php echo drsm_icon("alert"); ?>No fix yet</h2><span class="muted small"><?php echo (int)$v["nunfixed"]; ?> CVEs affect installed packages and Red Hat has no update for them yet</span></div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th scope="col">CVE</th><th scope="col">Severity</th><th scope="col">Packages</th><th scope="col">Red Hat state</th></tr></thead>
+      <tbody>
+<?php foreach($v["unfixed"] as $u) { ?>
+        <tr>
+          <th scope="row"><?php echo drsm_vuln_link($u["cve"]); ?></th>
+          <td><?php echo drsm_vuln_badge($u["severity"]); ?></td>
+          <td class="small"><code><?php echo implode("</code>, <code>", array_map("h", $u["packages"])); ?></code></td>
+          <td class="small"><?php echo h($u["state"]); ?></td>
+        </tr>
+<?php } ?>
+      </tbody>
+    </table>
+  </div>
+</section>
+<?php } ?>
 <?php if($v["compliance"]) { $c = $v["compliance"]; ?>
 <section class="panel flush">
   <div class="panel-head pad"><h2><?php echo drsm_icon("check"); ?>Compliance: <?php echo h($c["profile"]); ?></h2><span class="muted small">score <?php echo h($c["score"]); ?>, <?php echo (int)$c["pass"]; ?> rules pass, <?php echo (int)$c["fail"]; ?> fail, scanned <?php echo drsm_time_html($c["time"]); ?></span></div>

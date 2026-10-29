@@ -35,7 +35,8 @@ along with the DataReel software distribution.  If not, see
 Vulnerability scan results for the Vulnerabilities page. The
 linux/vulnerabilities plugin reads the scan results in each DataReel
 Reporting Agent for Linux report and prints "VULN kind|field|..."
-lines in its report section: summary, advisory, compliance and rule.
+lines in its report section: summary, advisory, unfixed (CVEs with no
+fix yet, from CSAF/VEX scans), compliance and rule.
 */
 // ----------------------------------------------------------- //
 // SCRIPT CONTENT STARTS BELOW.
@@ -57,7 +58,8 @@ function drsm_vuln_rank($sev)
 /*
 A host's linux/vulnerabilities section, or null. Returns source,
 scan_time, status, counts (severity => n), total, cves, advisories
-(id, severity, issued, cves, packages, title), compliance (profile,
+(id, severity, issued, cves, packages, title), unfixed (cve, severity,
+packages, state), nunfixed (null when the scan cannot tell), compliance (profile,
 score, pass, fail, time) or null, rules (rule, severity), state and
 the host.
 */
@@ -67,7 +69,7 @@ function drsm_vuln_parse($host)
   foreach($host["report"]["sections"] as $s) {
     if($s["id"] != DRSM_VULN_PLUGIN) continue;
     $v = array("source" => "", "scan_time" => 0, "status" => "", "counts" => array(), "total" => 0, "cves" => 0,
-               "advisories" => array(), "compliance" => null, "rules" => array(), "state" => $s["state"], "host" => $host);
+               "advisories" => array(), "unfixed" => array(), "nunfixed" => null, "compliance" => null, "rules" => array(), "state" => $s["state"], "host" => $host);
     foreach(array_keys(drsm_vuln_severities()) as $sev) $v["counts"][$sev] = 0;
     foreach($s["lines"] as $line) {
       if(!preg_match('/^VULN ([a-z]+)\|(.*)$/', $line, $m)) continue;
@@ -82,6 +84,12 @@ function drsm_vuln_parse($host)
         $v["total"] = (int)$f[7];
         $v["cves"] = (int)$f[8];
         $v["status"] = $f[9];
+        if(isset($f[10]) && ctype_digit($f[10])) $v["nunfixed"] = (int)$f[10];
+        break;
+      case "unfixed":
+        if(count($f) < 4) break;
+        $v["unfixed"][] = array("cve" => $f[0], "severity" => isset(drsm_vuln_severities()[$f[1]]) ? $f[1] : "Unknown",
+                                "packages" => $f[2] == "" ? array() : explode(",", $f[2]), "state" => $f[3]);
         break;
       case "advisory":
         if(count($f) < 6) break;

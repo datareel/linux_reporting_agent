@@ -4,6 +4,8 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 // C++ STD lib includes
 #include <string>
@@ -15,6 +17,7 @@
 
 // Libraries
 #include <bzlib.h>
+#include <zlib.h>
 #include <curl/curl.h>
 #include <libxml/xmlreader.h>
 #include <libxml/tree.h>
@@ -33,6 +36,14 @@ struct Advisory {
   std::string issued;                // YYYY-MM-DD
   std::set<std::string> cves;
   std::set<std::string> packages;    // name<fixed version, or the update NEVRA
+};
+
+// A CVE Red Hat lists as affecting an installed package, with no fix yet
+struct Unfixed {
+  std::string cve;
+  std::string severity;
+  std::string state;                 // Affected, Fix deferred, Will not fix, Out of support scope
+  std::set<std::string> packages;
 };
 
 static std::string NormalSeverity(const std::string &s)
@@ -78,6 +89,90 @@ static size_t CurlToFile(char *ptr, size_t size, size_t nmemb, void *userdata)
 
 //
 // Purpose:
+//   Downloads url to download when the server has a newer copy
+//   (If-Modified-Since against the file time of the last download)
+//
+// Parameters:
+//   have_copy - a usable earlier copy exists, a failed download keeps it
+//   report_server - the url is on the report server: use its
+//                   verify_peer and ca_file settings
+//   changed - set when a new copy was saved
+//
+// Return value:
+//   0 when download holds a usable copy
+//
+static int DownloadIfChanged(const AgentConfig &cfg, const std::string &url, const std::string &download,
+			     bool have_copy, bool report_server, bool &changed, std::string &output)
+{
+  changed = false;
+  std::string tmp = download + ".download";
+  FILE *fp = fopen(tmp.c_str(), "wb");
+  if(!fp) {
+    output += "ERROR - Cannot write " + tmp + "\n";
+    return -1;
+  }
+  CURL *curl = curl_easy_init();
+  char errbuf[CURL_ERROR_SIZE] = "";
+  long last = FileMtime(download);
+  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, CurlToFile);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+  AgentCurlProtocols(curl, true);
+  curl_easy_setopt(curl, CURLOPT_TIMEOUT, 600L);
+  curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+  curl_easy_setopt(curl, CURLOPT_FILETIME, 1L);
+  curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
+  curl_easy_setopt(curl, CURLOPT_USERAGENT, "DataReelReportAgentLinux/" AGENT_VERSION);
+  if(report_server) {
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, cfg.verify_peer ? 1L : 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, cfg.verify_peer ? 2L : 0L);
+    if(!cfg.ca_file.empty()) curl_easy_setopt(curl, CURLOPT_CAINFO, cfg.ca_file.c_str());
+  }
+  if(last > 0 && have_copy) {
+    curl_easy_setopt(curl, CURLOPT_TIMECONDITION, (long)CURL_TIMECOND_IFMODSINCE);
+    curl_easy_setopt(curl, CURLOPT_TIMEVALUE, last);
+  }
+  CURLcode rc = curl_easy_perform(curl);
+  long http = 0, filetime = -1, unmet = 0;
+  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http);
+  curl_easy_getinfo(curl, CURLINFO_FILETIME, &filetime);
+  curl_easy_getinfo(curl, CURLINFO_CONDITION_UNMET, &unmet);
+  curl_easy_cleanup(curl);
+  fclose(fp);
+
+  if(rc != CURLE_OK || (http != 200 && http != 304)) {
+    unlink(tmp.c_str());
+    std::string why = (rc != CURLE_OK) ? std::string(errbuf[0] ? errbuf : curl_easy_strerror(rc)) : "HTTP " + std::to_string(http);
+    if(have_copy) {
+      output += "WARNING - Could not download " + url + " (" + why + "), using the copy from the last scan\n";
+      return 0;
+    }
+    output += "ERROR - Could not download " + url + ": " + why + "\n";
+    return -1;
+  }
+  if(http == 304 || unmet) {
+    unlink(tmp.c_str());
+    return 0;
+  }
+  if(rename(tmp.c_str(), download.c_str()) != 0) {
+    output += "ERROR - Cannot save " + download + "\n";
+    return -1;
+  }
+  // Keep the server's time on the file for the next If-Modified-Since
+  if(filetime > 0) {
+    struct timespec ts[2];
+    ts[0].tv_sec = ts[1].tv_sec = (time_t)filetime;
+    ts[0].tv_nsec = ts[1].tv_nsec = 0;
+    utimensat(AT_FDCWD, download.c_str(), ts, 0);
+  }
+  output += "Downloaded " + url + "\n";
+  changed = true;
+  return 0;
+}
+
+//
+// Purpose:
 //   Downloads the OVAL feed when it changed on the server (If-Modified-Since)
 //   and unpacks a .bz2 feed
 //
@@ -103,64 +198,9 @@ static int FetchOvalFeed(const AgentConfig &cfg, const std::string &url, std::st
     feed_xml = bz2 ? JoinPath(dir, name.substr(0, name.length() - 4)) : download;
   }
   else {
-    std::string tmp = download + ".download";
-    FILE *fp = fopen(tmp.c_str(), "wb");
-    if(!fp) {
-      output += "ERROR - Cannot write " + tmp + "\n";
-      return -1;
-    }
-    CURL *curl = curl_easy_init();
-    char errbuf[CURL_ERROR_SIZE] = "";
-    long last = FileMtime(download);
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, CurlToFile);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    AgentCurlProtocols(curl, true);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 600L);
-    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-    curl_easy_setopt(curl, CURLOPT_FILETIME, 1L);
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "DataReelReportAgentLinux/" AGENT_VERSION);
-    if(last > 0 && FileExists(feed_xml)) {
-      curl_easy_setopt(curl, CURLOPT_TIMECONDITION, (long)CURL_TIMECOND_IFMODSINCE);
-      curl_easy_setopt(curl, CURLOPT_TIMEVALUE, last);
-    }
-    CURLcode rc = curl_easy_perform(curl);
-    long http = 0, filetime = -1;
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http);
-    curl_easy_getinfo(curl, CURLINFO_FILETIME, &filetime);
-    long unmet = 0;
-    curl_easy_getinfo(curl, CURLINFO_CONDITION_UNMET, &unmet);
-    curl_easy_cleanup(curl);
-    fclose(fp);
-
-    if(rc != CURLE_OK || (http != 200 && http != 304)) {
-      unlink(tmp.c_str());
-      std::string why = (rc != CURLE_OK) ? std::string(errbuf[0] ? errbuf : curl_easy_strerror(rc)) : "HTTP " + std::to_string(http);
-      if(FileExists(feed_xml)) {
-	output += "WARNING - Could not download " + url + " (" + why + "), using the copy from the last scan\n";
-	return 0;
-      }
-      output += "ERROR - Could not download " + url + ": " + why + "\n";
-      return -1;
-    }
-    if(http == 304 || unmet) {
-      unlink(tmp.c_str());
-      return 0;
-    }
-    if(rename(tmp.c_str(), download.c_str()) != 0) {
-      output += "ERROR - Cannot save " + download + "\n";
-      return -1;
-    }
-    // Keep the server's time on the file for the next If-Modified-Since
-    if(filetime > 0) {
-      std::string t = std::to_string(filetime);
-      CommandResult r;
-      RunCommand({ "touch", "-d", "@" + t, download }, 10, r);
-    }
-    output += "Downloaded " + url + "\n";
-    if(bz2) unlink(feed_xml.c_str());
+    bool changed = false;
+    if(DownloadIfChanged(cfg, url, download, FileExists(feed_xml), false, changed, output) != 0) return -1;
+    if(changed && bz2) unlink(feed_xml.c_str());
   }
 
   if(!bz2) return FileExists(feed_xml) ? 0 : -1;
@@ -420,6 +460,249 @@ static int ScanDnf(const AgentConfig &cfg, std::vector<Advisory> &advisories, st
   return 0;
 }
 
+//
+// Purpose:
+//   Compares two RPM version or release strings the way rpm does
+//   (rpmvercmp): digit and letter runs in turn, ~ sorts before
+//   anything, ^ after the end
+//
+// Return value:
+//   -1, 0 or 1
+//
+static int RpmVerCmp(const std::string &a, const std::string &b)
+{
+  if(a == b) return 0;
+  size_t i = 0, j = 0;
+  while(i < a.length() || j < b.length()) {
+    while(i < a.length() && !isalnum((unsigned char)a[i]) && a[i] != '~' && a[i] != '^') i++;
+    while(j < b.length() && !isalnum((unsigned char)b[j]) && b[j] != '~' && b[j] != '^') j++;
+    // Tilde: a pre-release, older than anything, even the end
+    if((i < a.length() && a[i] == '~') || (j < b.length() && b[j] == '~')) {
+      if(i >= a.length() || a[i] != '~') return 1;
+      if(j >= b.length() || b[j] != '~') return -1;
+      i++; j++;
+      continue;
+    }
+    // Caret: a post-release, newer than the end, older than more segments
+    if((i < a.length() && a[i] == '^') || (j < b.length() && b[j] == '^')) {
+      if(i >= a.length()) return -1;
+      if(j >= b.length()) return 1;
+      if(a[i] != '^') return 1;
+      if(b[j] != '^') return -1;
+      i++; j++;
+      continue;
+    }
+    if(i >= a.length() || j >= b.length()) break;
+    size_t si = i, sj = j;
+    bool num = isdigit((unsigned char)a[i]);
+    if(num) {
+      while(i < a.length() && isdigit((unsigned char)a[i])) i++;
+      while(j < b.length() && isdigit((unsigned char)b[j])) j++;
+    }
+    else {
+      while(i < a.length() && isalpha((unsigned char)a[i])) i++;
+      while(j < b.length() && isalpha((unsigned char)b[j])) j++;
+    }
+    std::string x = a.substr(si, i - si), y = b.substr(sj, j - sj);
+    // A number is newer than letters
+    if(y.empty()) return num ? 1 : -1;
+    if(num) {
+      x.erase(0, std::min(x.find_first_not_of('0'), x.length()));
+      y.erase(0, std::min(y.find_first_not_of('0'), y.length()));
+      if(x.length() != y.length()) return x.length() > y.length() ? 1 : -1;
+    }
+    int c = x.compare(y);
+    if(c != 0) return c > 0 ? 1 : -1;
+  }
+  if(i >= a.length() && j >= b.length()) return 0;
+  return i >= a.length() ? -1 : 1;
+}
+
+// Compares epoch:version-release strings
+int RpmEvrCmp(const std::string &a, const std::string &b)
+{
+  auto split = [](const std::string &evr, long &e, std::string &v, std::string &r) {
+    size_t c = evr.find(':');
+    e = (c == std::string::npos) ? 0 : atol(evr.substr(0, c).c_str());
+    std::string vr = (c == std::string::npos) ? evr : evr.substr(c + 1);
+    size_t d = vr.rfind('-');
+    v = (d == std::string::npos) ? vr : vr.substr(0, d);
+    r = (d == std::string::npos) ? "" : vr.substr(d + 1);
+  };
+  long ea, eb;
+  std::string va, vb, ra, rb;
+  split(a, ea, va, ra);
+  split(b, eb, vb, rb);
+  if(ea != eb) return ea > eb ? 1 : -1;
+  int c = RpmVerCmp(va, vb);
+  if(c != 0) return c;
+  return RpmVerCmp(ra, rb);
+}
+
+// The index URL: csaf_index_url, else vex_index.php next to the upload page
+static std::string CsafIndexUrl(const AgentConfig &cfg, int major)
+{
+  std::string url = cfg.csaf_index_url;
+  if(url.empty()) {
+    bool https = false;
+    for(const std::string &m : cfg.delivery_methods) if(m == "https") https = true;
+    if(!https || cfg.server_host.empty() || cfg.server_host == "reports.example.com") return std::string();
+    std::string dir = cfg.upload_path.substr(0, cfg.upload_path.rfind('/') + 1);
+    url = std::string(cfg.use_https ? "https://" : "http://") + cfg.server_host + ":" + std::to_string(cfg.server_port) +
+      dir + "vex_index.php";
+  }
+  if(url.find("{major}") != std::string::npos) {
+    url.replace(url.find("{major}"), 7, std::to_string(major));
+  }
+  else if(url.find(".php") != std::string::npos && url.find('?') == std::string::npos) {
+    url += "?rhel=" + std::to_string(major);
+  }
+  return url;
+}
+
+struct InstalledPackage {
+  std::string evr;                   // newest installed epoch:version-release
+  std::string source;                // source package name
+};
+
+static std::map<std::string, InstalledPackage> InstalledPackages(const AgentConfig &cfg)
+{
+  std::map<std::string, InstalledPackage> pkgs;
+  CommandResult r;
+  RunCommand({ FindProgram("rpm"), "-qa", "--qf", "%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{SOURCERPM}\n" },
+	     cfg.command_timeout_seconds, r);
+  for(const std::string &line : Split(r.out, '\n')) {
+    std::vector<std::string> f = Split(line, '\t');
+    if(f.size() < 3 || f[0] == "gpg-pubkey") continue;
+    // openssl-3.5.8-2.el10_2.src.rpm -> openssl
+    std::string src = f[2];
+    for(int k = 0; k < 3 && !src.empty(); k++) {
+      size_t d = (k == 0) ? src.rfind(".src.rpm") : src.rfind('-');
+      if(d == std::string::npos) break;
+      src = src.substr(0, d);
+    }
+    InstalledPackage &p = pkgs[f[0]];
+    // Two versions (kernels): the newest counts
+    if(p.evr.empty() || RpmEvrCmp(f[1], p.evr) > 0) {
+      p.evr = f[1];
+      p.source = src;
+    }
+  }
+  return pkgs;
+}
+
+//
+// Purpose:
+//   Checks the installed packages against the VEX index the report
+//   server builds from Red Hat's CSAF/VEX files (php/vex_sync.php)
+//
+// Return value:
+//   0 on success
+//
+static int ScanCsaf(const AgentConfig &cfg, std::vector<Advisory> &advisories, std::vector<Unfixed> &unfixed,
+		    std::string &feed, std::string &output)
+{
+  std::map<std::string, std::string> os = ReadOsRelease();
+  std::string ver = os["VERSION_ID"];
+  int major = atoi(ver.c_str());
+  int minor = (ver.find('.') != std::string::npos) ? atoi(ver.substr(ver.find('.') + 1).c_str()) : 0;
+  feed = CsafIndexUrl(cfg, major);
+  if(feed.empty()) {
+    output += "ERROR - [scan] source=csaf needs csaf_index_url, or https delivery to a report server\n";
+    return -1;
+  }
+  std::string dir = JoinPath(cfg.data_dir, "csaf");
+  CreateDirTree(dir, 0700);
+  std::string index = JoinPath(dir, "vex_rhel" + std::to_string(major) + ".tsv.gz");
+  bool changed = false;
+  if(StartsWith(feed, "/")) index = feed;
+  else if(DownloadIfChanged(cfg, feed, index, FileExists(index), true, changed, output) != 0) return -1;
+
+  std::map<std::string, InstalledPackage> pkgs = InstalledPackages(cfg);
+  std::set<std::string> sources;
+  for(const auto &kv : pkgs) sources.insert(kv.second.source);
+
+  gzFile gz = gzopen(index.c_str(), "rb");
+  if(!gz) {
+    output += "ERROR - Cannot read " + index + "\n";
+    return -1;
+  }
+  // Fixed lines per CVE and package: the stream to compare with is the
+  // host's minor release, or the newest one before it
+  struct Fix { int minor; std::string evr, rhsa, severity; };
+  std::map<std::pair<std::string, std::string>, std::vector<Fix> > fixes;
+  std::map<std::string, Unfixed> open;
+  bool header = false;
+  char buf[8192];
+  while(gzgets(gz, buf, sizeof(buf))) {
+    std::string line = buf;
+    while(!line.empty() && (line.back() == '\n' || line.back() == '\r')) line.pop_back();
+    if(StartsWith(line, "# DataReel Reporting Agent VEX index")) header = true;
+    if(line.empty() || line[0] == '#') continue;
+    std::vector<std::string> f = Split(line, '\t');
+    if(f[0] == "F" && f.size() >= 8 && atoi(f[4].c_str()) == major && pkgs.count(f[3])) {
+      Fix x = { atoi(f[5].c_str()), f[6], f[7], f[2] };
+      fixes[std::make_pair(f[1], f[3])].push_back(x);
+    }
+    else if(f[0] == "U" && f.size() >= 6 && atoi(f[4].c_str()) == major && (pkgs.count(f[3]) || sources.count(f[3]))) {
+      Unfixed &u = open[f[1]];
+      u.cve = f[1];
+      u.severity = NormalSeverity(f[2]);
+      u.state = f[5];
+      u.packages.insert(f[3]);
+    }
+  }
+  gzclose(gz);
+  if(!header) {
+    output += "ERROR - " + feed + " is not a VEX index from vex_sync.php\n";
+    unlink(index.c_str());
+    return -1;
+  }
+
+  std::map<std::string, Advisory> by_id;
+  for(auto &kv : fixes) {
+    const std::string &cve = kv.first.first, &name = kv.first.second;
+    const Fix *use = NULL;
+    for(const Fix &x : kv.second) {
+      if(x.minor <= minor && (!use || x.minor > use->minor)) use = &x;
+    }
+    // A host older than every stream with a fix: the oldest fix
+    if(!use) for(const Fix &x : kv.second) if(!use || x.minor < use->minor) use = &x;
+    if(RpmEvrCmp(pkgs[name].evr, use->evr) >= 0) continue;
+    std::string id = use->rhsa.empty() ? cve : use->rhsa;
+    Advisory &a = by_id[id];
+    a.id = id;
+    if(a.severity.empty() || SeverityRank(NormalSeverity(use->severity)) < SeverityRank(a.severity)) {
+      a.severity = NormalSeverity(use->severity);
+    }
+    a.cves.insert(cve);
+    a.packages.insert(name + "<" + use->evr);
+  }
+  for(auto &kv : by_id) {
+    Advisory &a = kv.second;
+    // VEX names the RHSA, not its title; name the packages it fixes
+    std::set<std::string> names;
+    for(const std::string &p : a.packages) names.insert(p.substr(0, p.find('<')));
+    std::string list;
+    int n = 0;
+    for(const std::string &nm : names) if(n++ < 3) list += (list.empty() ? "" : ", ") + nm;
+    if(names.size() > 3) list += " and " + std::to_string(names.size() - 3) + " more";
+    a.title = a.severity + ": " + list + " security update";
+    advisories.push_back(a);
+  }
+  // A CVE with a pending fix for one package is not also "unfixed" for it
+  for(auto &kv : open) {
+    bool fixed_too = false;
+    for(const Advisory &a : advisories) if(a.cves.count(kv.first)) fixed_too = true;
+    if(!fixed_too) unfixed.push_back(kv.second);
+  }
+  std::sort(unfixed.begin(), unfixed.end(), [](const Unfixed &a, const Unfixed &b) {
+      if(SeverityRank(a.severity) != SeverityRank(b.severity)) return SeverityRank(a.severity) < SeverityRank(b.severity);
+      return a.cve > b.cve;
+    });
+  return 0;
+}
+
 static std::string JoinSet(const std::set<std::string> &s)
 {
   std::string out;
@@ -532,7 +815,15 @@ int RunScan(const AgentConfig &cfg, std::string &output)
   CreateDirTree(cfg.data_dir, 0700);
   std::string source = cfg.scan_source;
   std::string url = cfg.oval_feed_url.empty() ? DefaultOvalFeed() : cfg.oval_feed_url;
-  if(source == "auto") source = url.empty() ? "dnf" : "oval";
+  std::map<std::string, std::string> os = ReadOsRelease();
+  int major = atoi(os["VERSION_ID"].c_str());
+  if(source == "auto") {
+    // RHEL 10 has no OVAL feed: the report server's CSAF/VEX index when
+    // there is a report server, dnf otherwise
+    if(!url.empty()) source = "oval";
+    else if(os["ID"] == "rhel" && major >= 10 && !CsafIndexUrl(cfg, major).empty()) source = "csaf";
+    else source = "dnf";
+  }
   if(source == "oval" && url.empty()) {
     output += "ERROR - [scan] source=oval needs oval_feed_url, Red Hat has no OVAL feed for this release\n";
     source = "dnf";
@@ -540,10 +831,30 @@ int RunScan(const AgentConfig &cfg, std::string &output)
 
   time_t start = time(NULL);
   std::vector<Advisory> advisories;
-  int rv = (source == "oval") ? ScanOval(cfg, url, advisories, output) : ScanDnf(cfg, advisories, output);
+  std::vector<Unfixed> unfixed;
+  std::string feed = (source == "oval") ? url : std::string("dnf updateinfo");
+  int rv;
+  if(source == "oval") {
+    rv = ScanOval(cfg, url, advisories, output);
+  }
+  else if(source == "csaf") {
+    rv = ScanCsaf(cfg, advisories, unfixed, feed, output);
+    // Without the index, dnf still lists the advisories with fixes
+    if(rv != 0 && cfg.scan_source == "auto") {
+      output += "WARNING - CSAF/VEX scan failed, using dnf updateinfo\n";
+      advisories.clear();
+      unfixed.clear();
+      source = "dnf";
+      feed = "dnf updateinfo";
+      rv = ScanDnf(cfg, advisories, output);
+    }
+  }
+  else {
+    rv = ScanDnf(cfg, advisories, output);
+  }
 
   std::string section = "source=" + source + "\n";
-  section += "feed=" + (source == "oval" ? url : std::string("dnf updateinfo")) + "\n";
+  section += "feed=" + feed + "\n";
   section += "scan_etime=" + std::to_string((long long)start) + "\n";
   section += "scan_seconds=" + std::to_string((long long)(time(NULL) - start)) + "\n";
   if(rv != 0) {
@@ -568,13 +879,18 @@ int RunScan(const AgentConfig &cfg, std::string &output)
     section += "critical=" + std::to_string(counts["Critical"]) + " important=" + std::to_string(counts["Important"]) +
       " moderate=" + std::to_string(counts["Moderate"]) + " low=" + std::to_string(counts["Low"]) +
       " unknown=" + std::to_string(counts["Unknown"]) + " total=" + std::to_string(advisories.size()) +
-      " cves=" + std::to_string(cves.size()) + "\n";
+      " cves=" + std::to_string(cves.size()) + " unfixed=" + std::to_string(unfixed.size()) + "\n";
     for(const Advisory &a : advisories) {
       section += "advisory id=" + a.id + " severity=" + a.severity;
       if(!a.issued.empty()) section += " issued=" + a.issued;
       section += " cves=" + JoinSet(a.cves);
       section += " packages=" + JoinSet(a.packages);
       section += " title=" + QuoteValue(a.title) + "\n";
+    }
+    // Known vulnerabilities with no update yet (CSAF/VEX only)
+    for(const Unfixed &u : unfixed) {
+      section += "unfixed cve=" + u.cve + " severity=" + u.severity + " packages=" + JoinSet(u.packages) +
+	" state=" + QuoteValue(u.state) + "\n";
     }
   }
   WriteWholeFile(JoinPath(cfg.data_dir, SCAN_VULN_FILE), section, 0600);

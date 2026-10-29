@@ -30,7 +30,7 @@ for rel in ${RELEASES}; do
 	-v "${OUT}:/out:z" -v "${TOP}/rpm:/spec:ro,z" \
 	"registry.access.redhat.com/ubi${rel}/ubi:latest" bash -c "
 set -e
-dnf -q -y install rpm-build gcc-c++ make pkgconf-pkg-config openssl-devel libcurl-devel libxml2-devel bzip2-devel systemd-rpm-macros > /tmp/dnf.log 2>&1 || { tail -20 /tmp/dnf.log; exit 1; }
+dnf -q -y install rpm-build gcc-c++ make pkgconf-pkg-config openssl-devel libcurl-devel libxml2-devel bzip2-devel zlib-devel systemd-rpm-macros > /tmp/dnf.log 2>&1 || { tail -20 /tmp/dnf.log; exit 1; }
 mkdir -p ~/rpmbuild/SOURCES
 cp /out/${NAME}-${VERSION}.tar.gz ~/rpmbuild/SOURCES/
 rpmbuild -bb --quiet /spec/${NAME}.spec
