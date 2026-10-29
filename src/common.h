@@ -57,6 +57,7 @@ struct AgentConfig {
   std::string scan_source;        // source: auto, oval, csaf, dnf
   std::string oval_feed_url;      // oval_feed_url, empty picks Red Hat's feed for the host's release
   std::string csaf_index_url;     // csaf_index_url, empty = vex_index.php next to the upload page
+  std::string unfixed_list_severity; // unfixed_list_severity: list unfixed CVEs at or above this
   std::string oscap_path;         // oscap_path
   bool scan_upload_html;          // upload_html
   std::string compliance_profile; // compliance_profile, empty = no compliance scan

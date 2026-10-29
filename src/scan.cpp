@@ -690,17 +690,44 @@ static int ScanCsaf(const AgentConfig &cfg, std::vector<Advisory> &advisories, s
     a.title = a.severity + ": " + list + " security update";
     advisories.push_back(a);
   }
-  // A CVE with a pending fix for one package is not also "unfixed" for it
-  for(auto &kv : open) {
-    bool fixed_too = false;
-    for(const Advisory &a : advisories) if(a.cves.count(kv.first)) fixed_too = true;
-    if(!fixed_too) unfixed.push_back(kv.second);
-  }
-  std::sort(unfixed.begin(), unfixed.end(), [](const Unfixed &a, const Unfixed &b) {
-      if(SeverityRank(a.severity) != SeverityRank(b.severity)) return SeverityRank(a.severity) < SeverityRank(b.severity);
-      return a.cve > b.cve;
-    });
+  for(auto &kv : open) unfixed.push_back(kv.second);
   return 0;
+}
+
+//
+// Purpose:
+//   Adds the dnf updateinfo advisories to a CSAF/VEX scan. Red Hat
+//   updates the VEX files a day or more after an erratum ships, so the
+//   newest fixes are only in the repository metadata until then.
+//
+static void MergeDnfAdvisories(const AgentConfig &cfg, std::vector<Advisory> &advisories, std::string &feed,
+			       std::string &output)
+{
+  if(DnfProgram().empty()) return;
+  std::vector<Advisory> dnf;
+  std::string out;
+  if(ScanDnf(cfg, dnf, out) != 0) {
+    output += "WARNING - dnf updateinfo failed, the newest advisories may be missing: " + Trim(out) + "\n";
+    return;
+  }
+  std::map<std::string, size_t> have;
+  for(size_t i = 0; i < advisories.size(); i++) have[advisories[i].id] = i;
+  int added = 0;
+  for(const Advisory &d : dnf) {
+    auto it = have.find(d.id);
+    if(it != have.end()) {
+      Advisory &a = advisories[it->second];
+      a.cves.insert(d.cves.begin(), d.cves.end());
+      // dnf has the real title and date
+      if(!d.title.empty()) a.title = d.title;
+      if(!d.issued.empty()) a.issued = d.issued;
+      continue;
+    }
+    advisories.push_back(d);
+    added++;
+  }
+  feed += " + dnf updateinfo";
+  if(added > 0) output += std::to_string(added) + " advisories from dnf updateinfo are not in the VEX files yet\n";
 }
 
 static std::string JoinSet(const std::set<std::string> &s)
@@ -839,6 +866,7 @@ int RunScan(const AgentConfig &cfg, std::string &output)
   }
   else if(source == "csaf") {
     rv = ScanCsaf(cfg, advisories, unfixed, feed, output);
+    if(rv == 0) MergeDnfAdvisories(cfg, advisories, feed, output);
     // Without the index, dnf still lists the advisories with fixes
     if(rv != 0 && cfg.scan_source == "auto") {
       output += "WARNING - CSAF/VEX scan failed, using dnf updateinfo\n";
@@ -851,6 +879,19 @@ int RunScan(const AgentConfig &cfg, std::string &output)
   }
   else {
     rv = ScanDnf(cfg, advisories, output);
+  }
+
+  // A CVE with an update waiting is not also "no fix yet"
+  if(!unfixed.empty()) {
+    std::set<std::string> fixed;
+    for(const Advisory &a : advisories) fixed.insert(a.cves.begin(), a.cves.end());
+    std::vector<Unfixed> keep;
+    for(const Unfixed &u : unfixed) if(!fixed.count(u.cve)) keep.push_back(u);
+    unfixed.swap(keep);
+    std::sort(unfixed.begin(), unfixed.end(), [](const Unfixed &a, const Unfixed &b) {
+	if(SeverityRank(a.severity) != SeverityRank(b.severity)) return SeverityRank(a.severity) < SeverityRank(b.severity);
+	return a.cve > b.cve;
+      });
   }
 
   std::string section = "source=" + source + "\n";
@@ -887,10 +928,22 @@ int RunScan(const AgentConfig &cfg, std::string &output)
       section += " packages=" + JoinSet(a.packages);
       section += " title=" + QuoteValue(a.title) + "\n";
     }
-    // Known vulnerabilities with no update yet (CSAF/VEX only)
-    for(const Unfixed &u : unfixed) {
-      section += "unfixed cve=" + u.cve + " severity=" + u.severity + " packages=" + JoinSet(u.packages) +
-	" state=" + QuoteValue(u.state) + "\n";
+    // Known vulnerabilities with no update yet (CSAF/VEX only). There
+    // can be thousands (kernel CVEs under review), so all are counted and
+    // those at or above unfixed_list_severity are listed.
+    if(source == "csaf") {
+      std::map<std::string, int> uc;
+      for(const Unfixed &u : unfixed) uc[u.severity]++;
+      section += "unfixed_counts critical=" + std::to_string(uc["Critical"]) + " important=" + std::to_string(uc["Important"]) +
+	" moderate=" + std::to_string(uc["Moderate"]) + " low=" + std::to_string(uc["Low"]) +
+	" unknown=" + std::to_string(uc["Unknown"]) + "\n";
+      int limit = SeverityRank(NormalSeverity(cfg.unfixed_list_severity));
+      if(ToLower(cfg.unfixed_list_severity) == "none") limit = -1;
+      for(const Unfixed &u : unfixed) {
+	if(SeverityRank(u.severity) > limit) continue;
+	section += "unfixed cve=" + u.cve + " severity=" + u.severity + " packages=" + JoinSet(u.packages) +
+	  " state=" + QuoteValue(u.state) + "\n";
+      }
     }
   }
   WriteWholeFile(JoinPath(cfg.data_dir, SCAN_VULN_FILE), section, 0600);

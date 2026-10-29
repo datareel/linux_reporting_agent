@@ -111,7 +111,13 @@ fi
 crit=${V[critical]:-0}; imp=${V[important]:-0}; mod=${V[moderate]:-0}; low=${V[low]:-0}; unk=${V[unknown]:-0}
 total=${V[total]:-0}; cves=${V[cves]:-0}; unfixed=${V[unfixed]:-}
 summary="${total} security advisories apply: ${crit} critical, ${imp} important, ${mod} moderate, ${low} low, ${cves} CVEs (${src} scan)"
-if [ "${unfixed}" != "" ]; then summary="${summary}, ${unfixed} CVEs with no fix yet"; fi
+declare -A UC
+ucounts=$(lra_section "VULNERABILITIES" "${REPORT}" | sed -n 's/^unfixed_counts //p' | head -1)
+for kv in ${ucounts}; do UC[${kv%%=*}]="${kv#*=}"; done
+if [ "${unfixed}" != "" ]; then
+    summary="${summary}, ${unfixed} CVEs with no fix yet"
+    if [ "${ucounts}" != "" ]; then summary="${summary} (${UC[critical]:-0} critical, ${UC[important]:-0} important)"; fi
+fi
 echo "${summary}"
 drsm_detail "Vulnerabilities" "${crit} critical, ${imp} important, ${mod} moderate, ${low} low${unfixed:+, ${unfixed} unfixed}"
 echo "VULN summary|${src}|${scan_etime}|${crit}|${imp}|${mod}|${low}|${unk}|${total}|${cves}|ok|${unfixed}"
@@ -155,7 +161,7 @@ if [ "${unfixed:-0}" -gt 0 ]; then
 	      if (k <= r) n++ }
 	    END { print n + 0 }')
     echo ""
-    echo "${unfixed} CVEs affect installed packages and have no fix from Red Hat yet"
+    echo "${unfixed} CVEs affect installed packages and have no fix from Red Hat yet: ${UC[critical]:-?} critical, ${UC[important]:-?} important, ${UC[moderate]:-?} moderate, ${UC[low]:-?} low"
     if [ "${urank}" -lt 9 ] && [ "${worst}" -gt 0 ]; then
 	drsm_warn "${LRA_HOST} has ${worst} ${UNFIXED_WARN_SEVERITY} or worse CVEs with no fix yet"
     fi

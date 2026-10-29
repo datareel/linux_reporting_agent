@@ -300,8 +300,10 @@ if ($state['last_change'] === '') {
         fwrite(STDERR, "ERROR - Could not read $archive\n");
         exit(1);
     }
-    // Changes after the archive date come from changes.csv below
+    // Changes after the archive date come from changes.csv below. Saved
+    // now, so a run that stops later does not read the archive again.
     $state['last_change'] = $m[1] . 'T00:00:00+00:00';
+    lra_write_atomic($state_file, json_encode($state) . "\n", 0644);
     unlink($archive);
 }
 
@@ -311,37 +313,77 @@ if ($changes === false) {
     exit(1);
 }
 $todo = array();
-$newest = $state['last_change'];
 foreach (explode("\n", $changes) as $line) {
     if (!preg_match('/^"(\d{4}\/cve-\d{4}-\d+\.json)","([^"]+)"$/', trim($line), $m)) {
         continue;
     }
-    if (strcmp($m[2], $state['last_change']) > 0) {
+    // >= so a file with the same time as the last one read is not missed
+    if (strcmp($m[2], $state['last_change']) >= 0) {
         $todo[$m[1]] = $m[2];
-        if (strcmp($m[2], $newest) > 0) {
-            $newest = $m[2];
-        }
     }
 }
+// Oldest first, so last_change can move forward batch by batch and a
+// run that stops goes on from there next time
+asort($todo);
 vex_log(count($todo) . " CVE files changed since " . $state['last_change']);
 if ($dry) {
     exit(0);
 }
-$failed = 0;
-foreach ($todo as $path => $t) {
-    $json = vex_fetch(VEX_BASE . $path);
-    if ($json === false) {
-        $failed++;
-        continue;
+
+// Fetches several files at once, returns path => JSON (false on failure)
+function vex_fetch_many($paths) {
+    $mh = curl_multi_init();
+    $handles = array();
+    foreach ($paths as $path) {
+        $ch = curl_init(VEX_BASE . $path);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+        curl_setopt($ch, CURLOPT_ENCODING, '');
+        curl_setopt($ch, CURLOPT_USERAGENT, 'DataReelReportAgentLinux-vex_sync');
+        curl_multi_add_handle($mh, $ch);
+        $handles[$path] = $ch;
     }
-    vex_save_record($rec_dir, $path, vex_records($json, $releases));
+    do {
+        $st = curl_multi_exec($mh, $running);
+        if ($running) {
+            curl_multi_select($mh, 1.0);
+        }
+    } while ($running && $st == CURLM_OK);
+    $out = array();
+    foreach ($handles as $path => $ch) {
+        $ok = curl_getinfo($ch, CURLINFO_RESPONSE_CODE) == 200;
+        $out[$path] = $ok ? curl_multi_getcontent($ch) : false;
+        curl_multi_remove_handle($mh, $ch);
+        curl_close($ch);
+    }
+    curl_multi_close($mh);
+    return $out;
+}
+
+$failed = 0;
+$done = 0;
+foreach (array_chunk(array_keys($todo), 16) as $batch) {
+    foreach (vex_fetch_many($batch) as $path => $json) {
+        if ($json === false) {
+            $failed++;
+            continue;
+        }
+        vex_save_record($rec_dir, $path, vex_records($json, $releases));
+    }
+    $done += count($batch);
+    // Everything up to this batch is in, unless a file failed
+    if ($failed == 0) {
+        $state['last_change'] = $todo[end($batch)];
+        lra_write_atomic($state_file, json_encode($state) . "\n", 0644);
+    }
+    if ($done % 800 == 0) {
+        vex_log("  $done of " . count($todo) . " changed files read");
+    }
 }
 if ($failed > 0) {
-    // Keep last_change, so the next run fetches them again
+    // last_change stops before the first failure, the next run retries
     vex_log("WARNING - $failed CVE files could not be downloaded, they are retried next run");
-}
-else {
-    $state['last_change'] = $newest;
 }
 
 // Deleted CVE files drop out of the index
@@ -382,6 +424,5 @@ foreach ($releases as $r) {
     }
     vex_log("RHEL $r index: $nf fixed package lines, $nu unfixed, " . round(strlen($gz) / 1024) . " KB");
 }
-lra_write_atomic($state_file, json_encode($state) . "\n", 0644);
 exit($failed > 0 ? 1 : 0);
 ?>

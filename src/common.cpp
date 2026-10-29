@@ -69,6 +69,7 @@ void SetDefaultAgentConfig(AgentConfig &cfg)
   cfg.scan_source = "auto";
   cfg.oval_feed_url.clear();
   cfg.csaf_index_url.clear();
+  cfg.unfixed_list_severity = "Important";
   cfg.oscap_path = "/usr/bin/oscap";
   cfg.scan_upload_html = true;
   cfg.compliance_profile.clear();
@@ -186,6 +187,7 @@ int LoadAgentConfig(AgentConfig &cfg, const std::string &ini_path, std::string &
       else if(key == "source") cfg.scan_source = ToLower(val);
       else if(key == "oval_feed_url") cfg.oval_feed_url = val;
       else if(key == "csaf_index_url") cfg.csaf_index_url = val;
+      else if(key == "unfixed_list_severity") cfg.unfixed_list_severity = val;
       else if(key == "oscap_path") cfg.oscap_path = val;
       else if(key == "upload_html") cfg.scan_upload_html = ParseBool(val, cfg.scan_upload_html);
       else if(key == "compliance_profile") cfg.compliance_profile = val;
