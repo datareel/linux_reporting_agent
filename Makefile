@@ -4,7 +4,8 @@
 
 CXX      ?= g++
 CXXFLAGS ?= -O2 -g -Wall -Wextra -Wno-unused-parameter
-CXXFLAGS += -std=c++17 $(shell pkg-config --cflags libxml-2.0)
+# Kept apart from CXXFLAGS, so "make CXXFLAGS=..." (rpmbuild) keeps them
+AGENT_CXXFLAGS = -std=c++17 $(shell pkg-config --cflags libxml-2.0)
 LIBS      = -lssl -lcrypto -lcurl -lbz2 $(shell pkg-config --libs libxml-2.0)
 
 PREFIX     ?= /usr
@@ -18,10 +19,10 @@ OBJS = src/drra.o src/common.o src/agent_auth.o src/collect.o src/deliver.o src/
 all: drra
 
 drra: $(OBJS)
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
+	$(CXX) $(CXXFLAGS) $(AGENT_CXXFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
 
 src/%.o: src/%.cpp src/*.h
-	$(CXX) $(CXXFLAGS) -c -o $@ $<
+	$(CXX) $(CXXFLAGS) $(AGENT_CXXFLAGS) -c -o $@ $<
 
 install: drra
 	install -D -m 0755 drra $(DESTDIR)$(SBINDIR)/drra
