@@ -27,6 +27,7 @@
 #include "collect.h"
 #include "scan.h"
 #include "hooks.h"
+#include "uploads.h"
 
 static std::string ReadSmallFile(const std::string &fname)
 {
@@ -681,6 +682,8 @@ std::string BuildReport(const AgentConfig &cfg, std::string &output)
   report += ScanReportSections(cfg);
   // Site checks from the report hooks
   report += HookReportSection(cfg, output);
+  // State of the hook uploads (reports from other sources)
+  report += UploadReportSection(cfg);
 
   AddSection(report, "INSTALLED PACKAGES", packages);
   return report;

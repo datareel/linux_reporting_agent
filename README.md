@@ -28,6 +28,7 @@ plugins); the agent is for hosts it cannot reach.
 | VULNERABILITIES | Security advisories that apply, with severity, CVEs and fixed packages |
 | COMPLIANCE | SCAP Security Guide profile score and failed rules (optional) |
 | HOOKS | Output of the site's report hooks (`/etc/drra/report.d`), see below |
+| UPLOADS | State of the hook uploads (`/etc/drra/uploads.d`): last sent, files waiting |
 | INSTALLED PACKAGES | Every package with version and install time |
 
 ## Report hooks
@@ -107,8 +108,49 @@ example `cis_server_l1` or `stig` (needs `scap-security-guide`).
 ```
 
 Commands: `drra run` (the service), `once`, `report`, `scan`,
-`register`, `fingerprint`, `config`, `version`. `systemctl reload drra`
-sends a report now. Settings are read again before every report.
+`submit`, `send-uploads`, `uploads`, `register`, `fingerprint`, `config`,
+`version`. `systemctl reload drra` sends a report now. Settings are
+read again before every report.
+
+## Hook uploads
+
+A hook upload sends a report from another source with the agent: a
+scan you run by hand (so a cloud server does not pay for a daily
+scan), a vendor tool's export, a backup job's result. Each upload hook
+is a file in `/etc/drra/uploads.d/` (root owned, not group or world
+writable):
+
+```
+# cat /etc/drra/uploads.d/openscap_manual.ini
+[upload]
+id=openscap_manual
+title=Manual OpenSCAP scan
+format=xccdf-results
+# oscap xccdf eval --profile cis_server_l1 --results /tmp/results.xml \
+    /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
+# drra submit --hook openscap_manual --now /tmp/results.xml
+```
+
+A tool can also write its file to `/var/spool/drra/uploads/<id>/`
+(write a dot or `.tmp` file, then rename it). Members of the
+`drra-upload` group may do both. Files go to `hook.php` on the report
+server after each report, or within seconds with `--now`; `drra
+send-uploads` sends them right away and `drra uploads` lists them.
+Sent files are kept in `<spool>/<id>/sent/`, and the report's
+`UPLOADS` section has each upload hook's state. Uploads use the https
+delivery method.
+
+The report server only takes an upload hook that has a manifest: the
+DRSM plugin `plugins/uploads/<id>/plugin.conf`, named by `[hooks]
+manifest_dir` in `server.ini`. The manifest picks the format
+(`drsm-lines`, `kv-sections`, `json`, `csv`, `xccdf-results`, `text`,
+`html`), the alert rules and how DRSM shows the data. See "Hook
+uploads" in DRSM's PLUGINS.md.
+
+Report hooks (`/etc/drra/report.d`, above) are the other kind of hook:
+scripts the agent runs with every report. Use them for a check that
+must run on the host each time; use hook uploads for a file that some
+other tool makes now and then.
 
 ## Report server
 
@@ -127,6 +169,9 @@ $ php/install_server.sh --apply --admin-user admin /var/www/html/linux /var/lib/
   an approved agent (RSA 3072, SHA-256, with a time stamp and a one time
   nonce), and saves it as `<host>_linux_report_agent.txt`, plus the
   OpenSCAP HTML reports, in `reports_dir`.
+* `hook.php` accepts hook uploads, signed the same way, for hook IDs
+  with a manifest, parses them with `hook_lib.php` and keeps them in
+  `[hooks] dir` (`<host>/<id>/latest.*` and `history/`).
 * `admin.php` approves, revokes and deletes agents. It can use the DRSM
   dashboard login (`--drsm-login`).
 * `vex_sync.php` (cron, not a web page) builds the RHEL 10 CSAF/VEX
@@ -171,6 +216,7 @@ $LRAreportsDir = "/var/www/html/linux/reports";   // only where the uploads land
 $ make
 $ tools/build_rpms.sh          # RHEL 8, 9 and 10 RPMs in UBI containers (podman)
 $ tests/drsm_test.sh           # DRSM plugins and pages against a DRSM checkout
+$ tests/uploads_test.sh        # hook uploads end to end with php -S (DRSM_DIR=... runs the DRSM probe too)
 ```
 
 ## License

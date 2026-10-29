@@ -6,6 +6,25 @@
 // registration record per hostname with the agent certificate, and only
 // accepts reports from approved agents whose signature checks out.
 
+// The server.ini path
+function lra_server_ini_path() {
+    // Set with "SetEnv LRA_SERVER_INI /path/server.ini" in the web server.
+    // Some PHP handlers only pass it through $_SERVER.
+    $ini_path = getenv('LRA_SERVER_INI');
+    if (($ini_path === false || $ini_path === '') && isset($_SERVER['LRA_SERVER_INI'])) {
+        $ini_path = $_SERVER['LRA_SERVER_INI'];
+    }
+    if ($ini_path === false || $ini_path === '') {
+        $ini_path = '/etc/linux_reporting_agent/server.ini';
+    }
+    // A relative path is relative to this directory, so the same .htaccess
+    // works wherever the pages are installed (shared hosting, the demo)
+    if ($ini_path[0] !== '/') {
+        $ini_path = __DIR__ . '/' . $ini_path;
+    }
+    return $ini_path;
+}
+
 function lra_config() {
     static $cfg = null;
     if ($cfg !== null) {
@@ -33,20 +52,7 @@ function lra_config() {
         ),
     );
 
-    // Set with "SetEnv LRA_SERVER_INI /path/server.ini" in the web server.
-    // Some PHP handlers only pass it through $_SERVER.
-    $ini_path = getenv('LRA_SERVER_INI');
-    if (($ini_path === false || $ini_path === '') && isset($_SERVER['LRA_SERVER_INI'])) {
-        $ini_path = $_SERVER['LRA_SERVER_INI'];
-    }
-    if ($ini_path === false || $ini_path === '') {
-        $ini_path = '/etc/linux_reporting_agent/server.ini';
-    }
-    // A relative path is relative to this directory, so the same .htaccess
-    // works wherever the pages are installed (shared hosting, the demo)
-    if ($ini_path[0] !== '/') {
-        $ini_path = __DIR__ . '/' . $ini_path;
-    }
+    $ini_path = lra_server_ini_path();
     $ini = array();
     if (is_readable($ini_path)) {
         $ini = parse_ini_file($ini_path, true, INI_SCANNER_RAW);

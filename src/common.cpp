@@ -33,6 +33,7 @@ void SetDefaultAgentConfig(AgentConfig &cfg)
   cfg.server_host = "reports.example.com";
   cfg.server_port = 443;
   cfg.upload_path = "/linux/upload/upload.php";
+  cfg.hook_path.clear();
   cfg.register_path = "/linux/upload/register.php";
   cfg.enrollment_token.clear();
   cfg.use_https = true;
@@ -82,6 +83,10 @@ void SetDefaultAgentConfig(AgentConfig &cfg)
   cfg.hooks_timeout_seconds = 60;
   cfg.hooks_max_output_kb = 256;
   cfg.hooks_user.clear();
+  cfg.uploads_enabled = true;
+  cfg.uploads_dir = "/etc/drra/uploads.d";
+  cfg.uploads_spool_dir = "/var/spool/drra/uploads";
+  cfg.uploads_max_bytes = 20000000;
 
   cfg.ini_path = AGENT_INI_FILE;
 }
@@ -153,6 +158,7 @@ int LoadAgentConfig(AgentConfig &cfg, const std::string &ini_path, std::string &
       if(key == "host") cfg.server_host = val;
       else if(key == "port") cfg.server_port = ParseInt(val, cfg.server_port, 1);
       else if(key == "upload_path") cfg.upload_path = val;
+      else if(key == "hook_path") cfg.hook_path = val;
       else if(key == "register_path") cfg.register_path = val;
       else if(key == "enrollment_token") cfg.enrollment_token = val;
       else if(key == "use_https") cfg.use_https = ParseBool(val, cfg.use_https);
@@ -207,6 +213,12 @@ int LoadAgentConfig(AgentConfig &cfg, const std::string &ini_path, std::string &
       else if(key == "timeout_seconds") cfg.hooks_timeout_seconds = ParseInt(val, cfg.hooks_timeout_seconds, 1);
       else if(key == "max_output_kb") cfg.hooks_max_output_kb = ParseInt(val, cfg.hooks_max_output_kb, 1);
       else if(key == "user") cfg.hooks_user = val;
+    }
+    else if(section == "uploads") {
+      if(key == "enabled") cfg.uploads_enabled = ParseBool(val, cfg.uploads_enabled);
+      else if(key == "dir") cfg.uploads_dir = val;
+      else if(key == "spool_dir") cfg.uploads_spool_dir = val;
+      else if(key == "max_bytes") cfg.uploads_max_bytes = ParseInt(val, (int)cfg.uploads_max_bytes, 1);
     }
   }
 

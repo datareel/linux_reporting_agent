@@ -14,7 +14,7 @@ SYSCONFDIR ?= /etc
 UNITDIR    ?= /usr/lib/systemd/system
 DOCDIR     ?= $(PREFIX)/share/doc/linux_reporting_agent
 
-OBJS = src/drra.o src/common.o src/agent_auth.o src/collect.o src/deliver.o src/scan.o src/hooks.o
+OBJS = src/drra.o src/common.o src/agent_auth.o src/collect.o src/deliver.o src/scan.o src/hooks.o src/uploads.o
 
 all: drra
 
@@ -32,6 +32,9 @@ install: drra
 	install -D -m 0644 systemd/drra.logrotate $(DESTDIR)$(SYSCONFDIR)/logrotate.d/drra
 	install -d -m 0700 $(DESTDIR)/var/lib/drra
 	install -d -m 0750 $(DESTDIR)/var/log/drra
+	install -d -m 0700 $(DESTDIR)$(SYSCONFDIR)/drra/uploads.d
+	install -d -m 0755 $(DESTDIR)/var/spool/drra
+	install -d -m 2770 $(DESTDIR)/var/spool/drra/uploads
 
 clean:
 	rm -f drra src/*.o

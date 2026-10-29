@@ -46,6 +46,9 @@ std::string ParseStatus(const std::string &response);
 std::string ReadRegistrationState(const AgentConfig &cfg);
 void WriteRegistrationState(const AgentConfig &cfg, const std::string &state);
 int RegisterAgent(const AgentConfig &cfg, const AgentIdentity &id, std::string &status, std::string &output);
+std::string HookPagePath(const AgentConfig &cfg);
+int UploadHook(const AgentConfig &cfg, const std::string &hook_id, const std::string &subject,
+               const std::string &envelope, const FormFile &payload, std::string &status, std::string &output);
 int UploadReport(const AgentConfig &cfg, const std::string &report, const std::vector<FormFile> &html_files, std::string &output);
 
 #endif

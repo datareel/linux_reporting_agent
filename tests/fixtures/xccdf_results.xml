@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Benchmark xmlns="http://checklists.nist.gov/xccdf/1.2" id="xccdf_org.ssgproject.content_benchmark_RHEL-9">
+  <title>Guide to the Secure Configuration of Red Hat Enterprise Linux 9</title>
+  <Rule id="xccdf_org.ssgproject.content_rule_accounts_tmout" severity="medium">
+    <title>Set Interactive Session Timeout</title>
+  </Rule>
+  <Rule id="xccdf_org.ssgproject.content_rule_sshd_disable_root_login" severity="high">
+    <title>Disable SSH Root Login</title>
+  </Rule>
+  <Rule id="xccdf_org.ssgproject.content_rule_grub2_password" severity="high">
+    <title>Set Boot Loader Password</title>
+  </Rule>
+  <Rule id="xccdf_org.ssgproject.content_rule_package_aide_installed" severity="medium">
+    <title>Install AIDE</title>
+  </Rule>
+  <TestResult id="xccdf_org.open-scap_testresult_cis_server_l1">
+    <profile idref="xccdf_org.ssgproject.content_profile_cis_server_l1"/>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_accounts_tmout" severity="medium"><result>fail</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_sshd_disable_root_login" severity="high"><result>fail</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_grub2_password" severity="high"><result>notapplicable</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_package_aide_installed" severity="medium"><result>pass</result></rule-result>
+    <score system="urn:xccdf:scoring:default" maximum="100">62.500000</score>
+  </TestResult>
+</Benchmark>

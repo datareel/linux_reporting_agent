@@ -20,6 +20,7 @@ struct AgentConfig {
   std::string server_host;        // host
   int server_port;                // port
   std::string upload_path;        // upload_path
+  std::string hook_path;          // hook_path: hook uploads, empty = hook.php next to upload_path
   std::string register_path;      // register_path
   std::string enrollment_token;   // enrollment_token
   bool use_https;                 // use_https
@@ -69,6 +70,11 @@ struct AgentConfig {
   int hooks_timeout_seconds;      // timeout_seconds, for each hook
   int hooks_max_output_kb;        // max_output_kb, for each hook
   std::string hooks_user;         // user: run the hooks as this user, empty = root
+  // [uploads] hook uploads
+  bool uploads_enabled;           // enabled
+  std::string uploads_dir;        // dir: one <id>.ini per upload hook
+  std::string uploads_spool_dir;  // spool_dir: <spool_dir>/<id>/ takes the files
+  long long uploads_max_bytes;    // max_bytes: largest file, an upload hook may set less
   // Full path of the INI file that was read
   std::string ini_path;
 };

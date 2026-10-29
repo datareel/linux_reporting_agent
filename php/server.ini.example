@@ -47,3 +47,17 @@ login = basic
 ; With login = drsm: the dashboard's config/drsm.php, absolute or relative
 ; to the pages folder, for example ../../config/drsm.php
 drsm_config =
+
+[hooks]
+; Hook uploads: reports from other sources that agents send to hook.php
+; (drra submit, the agent's upload spool folders). 1 = on, 0 = off
+enabled = 1
+; Hook manifests: the DRSM plugins/uploads folder (<id>/plugin.conf), or a
+; folder of <id>.conf copies. Only hook IDs with a manifest are taken.
+; Empty = no hooks are taken.
+manifest_dir =
+; Where hook payloads are kept: <dir>/<host>/<id>/latest.* and history/.
+; Default <data_dir>/hooks. DRSM reads it (UPLOADS_DIR in the host files).
+dir =
+; Largest payload, in bytes. A manifest's MAX_BYTES may set less.
+max_bytes = 20000000

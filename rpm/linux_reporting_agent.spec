@@ -15,6 +15,7 @@ Source0:        %{name}-%{agent_version}.tar.gz
 BuildRequires:  gcc-c++ make pkgconf-pkg-config
 BuildRequires:  openssl-devel libcurl-devel libxml2-devel bzip2-devel zlib-devel
 BuildRequires:  systemd-rpm-macros
+Requires(pre):  shadow-utils
 Requires:       openssl-libs libcurl libxml2 bzip2-libs zlib
 # OVAL vulnerability scans (RHEL 8 and 9) and compliance scans
 Recommends:     openscap-scanner
@@ -44,6 +45,11 @@ install -d -m 0755 %{buildroot}%{_docdir}/%{name}
 install -m 0644 README.md LICENSE %{buildroot}%{_docdir}/%{name}/
 cp -a php drsm %{buildroot}%{_docdir}/%{name}/
 
+%pre
+# Members of drra-upload may queue reports from other tools (drra submit)
+getent group drra-upload >/dev/null || groupadd -r drra-upload
+exit 0
+
 %post
 %systemd_post drra.service
 
@@ -62,12 +68,17 @@ cp -a php drsm %{buildroot}%{_docdir}/%{name}/
 %config(noreplace) %{_sysconfdir}/logrotate.d/drra
 %dir %attr(0700,root,root) %{_localstatedir}/lib/drra
 %dir %attr(0750,root,root) %{_localstatedir}/log/drra
+%dir %attr(0700,root,root) %{_sysconfdir}/drra/uploads.d
+%dir %attr(0755,root,root) %{_localstatedir}/spool/drra
+%dir %attr(2770,root,drra-upload) %{_localstatedir}/spool/drra/uploads
 %{_docdir}/%{name}
 
 %changelog
 * Thu Oct 29 2026 DataReel Software Development - 1.0-0.beta2
 - Report hooks: scripts in /etc/drra/report.d run with each report and
   their output goes in a HOOKS section for DRSM ([hooks] in drra.ini)
+- Hook uploads: files from other tools (drra submit, /var/spool/drra/uploads)
+  sent to hook.php on the report server ([uploads] in drra.ini)
 
 * Thu Oct 29 2026 DataReel Software Development - 1.0-0.beta1
 - First beta: C++ agent, signed HTTPS uploads, CIFS and SCP delivery,

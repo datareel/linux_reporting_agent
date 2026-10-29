@@ -7,7 +7,7 @@
 #
 #   WEB_DIR   Web directory for the pages, for example
 #             /var/www/html/linux. The pages go in WEB_DIR/upload/
-#             (register.php, upload.php, admin.php, vex_index.php, and
+#             (register.php, upload.php, hook.php, admin.php, vex_index.php, and
 #             vex_sync.php for cron).
 #   DATA_DIR  Directory for server.ini, agent registrations and reports.
 #             Best outside the web root. If it is inside WEB_DIR (common on
@@ -48,7 +48,7 @@ fi
 WEB_DIR="${1%/}"
 DATA_DIR="${2%/}"
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
-PAGES="register.php upload.php admin.php vex_index.php vex_sync.php lra_lib.php lra_auth.php"
+PAGES="register.php upload.php hook.php admin.php vex_index.php vex_sync.php lra_lib.php lra_auth.php hook_lib.php"
 
 case "$WEB_DIR" in /*) ;; *) echo "WEB_DIR must be an absolute path"; exit 1 ;; esac
 case "$DATA_DIR" in /*) ;; *) echo "DATA_DIR must be an absolute path"; exit 1 ;; esac

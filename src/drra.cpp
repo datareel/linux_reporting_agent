@@ -31,6 +31,7 @@
 #include "deliver.h"
 #include "scan.h"
 #include "hooks.h"
+#include "uploads.h"
 
 static volatile sig_atomic_t g_stop = 0;
 static volatile sig_atomic_t g_wake = 0;
@@ -51,6 +52,11 @@ static void Usage()
   printf("  report       print a report to standard output, nothing is sent\n");
   printf("  scan         run the vulnerability (and compliance) scan now\n");
   printf("  hooks        run the report hooks and print their HOOKS section\n");
+  printf("  submit --hook <id> [--now] <file>\n");
+  printf("               queue a report from another tool for upload hook <id> (%s/<id>.ini);\n", AGENT_UPLOADS_DIR_TEXT);
+  printf("               --now asks the running service to send it right away\n");
+  printf("  send-uploads send the queued upload files now, without a report\n");
+  printf("  uploads      list the upload hooks and their state\n");
   printf("  register     register the agent certificate with the report server\n");
   printf("  fingerprint  print the agent key fingerprint to check on the admin page\n");
   printf("  config       print the settings in use\n");
@@ -83,6 +89,11 @@ static int ReportCycle(const AgentConfig &cfg, std::string &output)
   int rv = DeliverReport(cfg, report_file, report, hostname, html_files, output);
   if(html_files.empty()) ClearPendingScanHtml(cfg);
   if(rv != 0) output += "ERROR - One or more report delivery methods failed\n";
+  // Reports from other sources (hook uploads) go out after the agent's own report
+  if(SendPendingUploads(cfg, output) != 0) {
+    output += "ERROR - One or more upload files could not be sent\n";
+    if(rv == 0) rv = -1;
+  }
   return rv;
 }
 
@@ -129,7 +140,15 @@ static int RunService(const std::string &ini_path)
 
     time_t next = start + (time_t)cfg.report_interval_minutes * 60;
     g_wake = 0;
-    while(!g_stop && !g_wake && time(NULL) < next) sleep(1);
+    while(!g_stop && !g_wake && time(NULL) < next) {
+      sleep(1);
+      // "drra submit --now": send the queued upload files without a report
+      if(UploadSendNowRequested(cfg)) {
+	output.clear();
+	SendPendingUploads(cfg, output);
+	LogMessage(cfg, output);
+      }
+    }
   }
   LogMessage(cfg, AGENT_NAME " stopped");
   return 0;
@@ -139,7 +158,7 @@ int main(int argc, char **argv)
 {
   std::string ini_path = AGENT_INI_FILE;
   int opt;
-  while((opt = getopt(argc, argv, "c:hV")) != -1) {
+  while((opt = getopt(argc, argv, "+c:hV")) != -1) {
     switch(opt) {
       case 'c': ini_path = optarg; break;
       case 'V': printf("%s\n", AGENT_VERSION); return 0;
@@ -220,6 +239,46 @@ int main(int argc, char **argv)
       rv = 1;
     }
   }
+  else if(command == "submit") {
+    // submit --hook <id> [--now] <file>, options in any order after the command
+    std::string hook_id, file;
+    bool now = false;
+    for(int i = optind + 1; i < argc; i++) {
+      std::string a = argv[i];
+      if(a == "--hook" && i + 1 < argc) hook_id = argv[++i];
+      else if(a.compare(0, 7, "--hook=") == 0) hook_id = a.substr(7);
+      else if(a == "--now") now = true;
+      else if(file.empty() && a.compare(0, 2, "--") != 0) file = a;
+      else {
+	fprintf(stderr, "Unknown option %s\n", a.c_str());
+	return 2;
+      }
+    }
+    if(hook_id.empty() || file.empty()) {
+      fprintf(stderr, "Usage: drra submit --hook <id> [--now] <file>\n");
+      return 2;
+    }
+    // Members of the drra-upload group may submit: their files are group readable
+    umask(027);
+    output.clear();
+    rv = SubmitUploadFile(cfg, hook_id, file, now, output) == 0 ? 0 : 1;
+    fputs(output.c_str(), rv == 0 ? stdout : stderr);
+  }
+  else if(command == "send-uploads") {
+    output.clear();
+    rv = SendPendingUploads(cfg, output) == 0 ? 0 : 1;
+    // LogMessage prints it too
+    LogMessage(cfg, output.empty() ? "No upload files waiting" : output);
+  }
+  else if(command == "uploads") {
+    std::string section = UploadReportSection(cfg);
+    output.clear();
+    LoadUploadHooks(cfg, output);
+    fputs(output.c_str(), stderr);
+    if(section.empty()) printf("No upload hooks in %s\n", cfg.uploads_dir.c_str());
+    else fputs(section.c_str(), stdout);
+    printf("Hook page: %s\n", HookPagePath(cfg).c_str());
+  }
   else if(command == "vercmp" && optind + 2 < argc) {
     // vercmp A B: how the CSAF scan compares package versions
     int c = RpmEvrCmp(argv[optind + 1], argv[optind + 2]);
@@ -246,6 +305,8 @@ int main(int argc, char **argv)
     printf("[hooks] enabled=%d dir=%s timeout_seconds=%d max_output_kb=%d user=%s\n",
 	   cfg.hooks_enabled, cfg.hooks_dir.c_str(), cfg.hooks_timeout_seconds, cfg.hooks_max_output_kb,
 	   cfg.hooks_user.empty() ? "root" : cfg.hooks_user.c_str());
+    printf("[uploads] enabled=%d dir=%s spool_dir=%s max_bytes=%lld hook_path=%s\n", cfg.uploads_enabled, cfg.uploads_dir.c_str(),
+	   cfg.uploads_spool_dir.c_str(), cfg.uploads_max_bytes, HookPagePath(cfg).c_str());
   }
   else {
     Usage();

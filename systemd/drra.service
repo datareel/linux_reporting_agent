@@ -19,7 +19,7 @@ IOSchedulingClass=idle
 # sshd settings and the DMI serial number. /usr, /boot and /etc are read
 # only; dnf still updates its cache in /var.
 ProtectSystem=full
-ReadWritePaths=-/var/lib/drra -/var/log/drra
+ReadWritePaths=-/var/lib/drra -/var/log/drra -/var/spool/drra
 PrivateTmp=yes
 ProtectHome=read-only
 NoNewPrivileges=yes
