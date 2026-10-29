@@ -27,7 +27,45 @@ plugins); the agent is for hosts it cannot reach.
 | UPDATES | Pending package updates, last package install, restart needed for a new kernel |
 | VULNERABILITIES | Security advisories that apply, with severity, CVEs and fixed packages |
 | COMPLIANCE | SCAP Security Guide profile score and failed rules (optional) |
+| HOOKS | Output of the site's report hooks (`/etc/drra/report.d`), see below |
 | INSTALLED PACKAGES | Every package with version and install time |
+
+## Report hooks
+
+Site checks the agent does not know, such as a cluster manager or an
+application, go in `/etc/drra/report.d`. Every executable file there
+runs once per report, one at a time, stopped after
+`[hooks] timeout_seconds` (60). A hook prints lines in the DRSM plugin
+format (`INFO - `, `WARNING - `, `ERROR - `, `METRIC`, `DETAIL` and free
+text) and exits 0 OK, 1 WARNING, 2 ERROR or 3 UNKNOWN. Its name is the
+file name without `.sh`. The report gets them in one section:
+
+```
+HOOKS:
+hook=drcm exit=0 secs=1 timed_out=0 truncated=0
+| INFO - node1 cluster status is HEALTHY, 2 nodes up, 1 resources
+| METRIC drcm_nodes_up=2
+END HOOKS
+```
+
+The agent runs as root, so a hook runs only when `report.d` and the
+file are owned by root and not group or world writable; others are
+listed as `skipped=` and logged. `[hooks] user=` runs them as another
+user (then point `dir` at a folder that user can reach, since
+`/etc/drra` is root only). `drra hooks` runs them now and prints the
+section.
+
+On the DRSM side, any plugin with `LRA_HOOK=<name>` in its manifest
+shows that hook as its own check on `COLLECTOR=lra` hosts (the
+`cluster/drcm` plugin does this), and `linux/hooks` shows every hook.
+DRSM's `utils/lra_hook_bundle.sh <plugin>` writes a DRSM plugin as one
+self-contained hook file:
+
+```
+~/drsm/utils/lra_hook_bundle.sh cluster/drcm > drcm
+sudo install -o root -g root -m 0755 drcm /etc/drra/report.d/drcm
+sudo drra hooks
+```
 
 ## Vulnerability scans
 

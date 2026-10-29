@@ -30,6 +30,7 @@
 #include "collect.h"
 #include "deliver.h"
 #include "scan.h"
+#include "hooks.h"
 
 static volatile sig_atomic_t g_stop = 0;
 static volatile sig_atomic_t g_wake = 0;
@@ -49,6 +50,7 @@ static void Usage()
   printf("  once         write and send one report, scanning first when a scan is due\n");
   printf("  report       print a report to standard output, nothing is sent\n");
   printf("  scan         run the vulnerability (and compliance) scan now\n");
+  printf("  hooks        run the report hooks and print their HOOKS section\n");
   printf("  register     register the agent certificate with the report server\n");
   printf("  fingerprint  print the agent key fingerprint to check on the admin page\n");
   printf("  config       print the settings in use\n");
@@ -181,6 +183,10 @@ int main(int argc, char **argv)
     fputs(output.c_str(), stdout);
     fputs(ScanReportSections(cfg).c_str(), stdout);
   }
+  else if(command == "hooks") {
+    fputs(HookReportSection(cfg, output).c_str(), stdout);
+    if(!output.empty()) fputs(output.c_str(), stderr);
+  }
   else if(command == "register") {
     AgentIdentity id;
     if(LoadOrCreateAgentIdentity(cfg, id, output) != 0) {
@@ -237,6 +243,9 @@ int main(int argc, char **argv)
     printf("[scan] enabled=%d interval_hours=%d source=%s oval_feed_url=%s csaf_index_url=%s compliance_profile=%s\n",
 	   cfg.scan_enabled, cfg.scan_interval_hours, cfg.scan_source.c_str(), cfg.oval_feed_url.c_str(), cfg.csaf_index_url.c_str(),
 	   cfg.compliance_profile.c_str());
+    printf("[hooks] enabled=%d dir=%s timeout_seconds=%d max_output_kb=%d user=%s\n",
+	   cfg.hooks_enabled, cfg.hooks_dir.c_str(), cfg.hooks_timeout_seconds, cfg.hooks_max_output_kb,
+	   cfg.hooks_user.empty() ? "root" : cfg.hooks_user.c_str());
   }
   else {
     Usage();

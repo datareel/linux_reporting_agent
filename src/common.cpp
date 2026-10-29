@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <grp.h>
 
 // C++ STD lib includes
 #include <string>
@@ -75,6 +76,12 @@ void SetDefaultAgentConfig(AgentConfig &cfg)
   cfg.compliance_profile.clear();
   cfg.compliance_datastream.clear();
   cfg.scan_timeout_minutes = 60;
+
+  cfg.hooks_enabled = true;
+  cfg.hooks_dir = "/etc/drra/report.d";
+  cfg.hooks_timeout_seconds = 60;
+  cfg.hooks_max_output_kb = 256;
+  cfg.hooks_user.clear();
 
   cfg.ini_path = AGENT_INI_FILE;
 }
@@ -193,6 +200,13 @@ int LoadAgentConfig(AgentConfig &cfg, const std::string &ini_path, std::string &
       else if(key == "compliance_profile") cfg.compliance_profile = val;
       else if(key == "compliance_datastream") cfg.compliance_datastream = val;
       else if(key == "timeout_minutes") cfg.scan_timeout_minutes = ParseInt(val, cfg.scan_timeout_minutes, 1);
+    }
+    else if(section == "hooks") {
+      if(key == "enabled") cfg.hooks_enabled = ParseBool(val, cfg.hooks_enabled);
+      else if(key == "dir") cfg.hooks_dir = val;
+      else if(key == "timeout_seconds") cfg.hooks_timeout_seconds = ParseInt(val, cfg.hooks_timeout_seconds, 1);
+      else if(key == "max_output_kb") cfg.hooks_max_output_kb = ParseInt(val, cfg.hooks_max_output_kb, 1);
+      else if(key == "user") cfg.hooks_user = val;
     }
   }
 
@@ -391,12 +405,13 @@ int OsMajorVersion()
 //   timeout_seconds - the program is killed after this many seconds
 //   result - exit code and output
 //   extra_env - NAME=value entries added to the environment
+//   run_as - user to run as (groups, then gid, then uid), NULL = this process's user
 //
 // Return value:
 //   0 when the program ran and exited 0
 //
 int RunCommand(const std::vector<std::string> &argv, int timeout_seconds, CommandResult &result,
-	       const std::vector<std::string> &extra_env)
+	       const std::vector<std::string> &extra_env, const RunAsUser *run_as)
 {
   result.exit_code = -1;
   result.timed_out = false;
@@ -416,7 +431,15 @@ int RunCommand(const std::vector<std::string> &argv, int timeout_seconds, Comman
   for(char **e = environ; e && *e; e++) env.push_back(*e);
   // Plain C locale output, the parsers expect English
   env.push_back("LC_ALL=C");
-  for(const std::string &e : extra_env) env.push_back(e);
+  for(const std::string &e : extra_env) {
+    // An extra NAME=value replaces the inherited NAME
+    std::string prefix = e.substr(0, e.find('=') + 1);
+    for(size_t i = 0; i < env.size(); ) {
+      if(!prefix.empty() && env[i].compare(0, prefix.length(), prefix) == 0) env.erase(env.begin() + i);
+      else i++;
+    }
+    env.push_back(e);
+  }
 
   pid_t pid = fork();
   if(pid < 0) {
@@ -435,6 +458,13 @@ int RunCommand(const std::vector<std::string> &argv, int timeout_seconds, Comman
     args.push_back(NULL);
     for(const std::string &e : env) envp.push_back(const_cast<char *>(e.c_str()));
     envp.push_back(NULL);
+    if(run_as) {
+      // Never run as root by mistake when the switch fails
+      if(initgroups(run_as->name.c_str(), (gid_t)run_as->gid) != 0) _exit(126);
+      if(setgid((gid_t)run_as->gid) != 0) _exit(126);
+      if(setuid((uid_t)run_as->uid) != 0) _exit(126);
+      if(!run_as->home.empty() && chdir(run_as->home.c_str()) != 0 && chdir("/") != 0) _exit(126);
+    }
     execvpe(args[0], args.data(), envp.data());
     _exit(127);
   }

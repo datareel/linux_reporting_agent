@@ -6,7 +6,7 @@
 #include <map>
 
 #define AGENT_NAME "DataReel Reporting Agent for Linux"
-#define AGENT_VERSION "1.0-beta1"
+#define AGENT_VERSION "1.0-beta2"
 #define AGENT_INI_FILE "/etc/drra/drra.ini"
 #define AGENT_REPORT_SUFFIX "_linux_report_agent.txt"
 #define AGENT_SCAP_SUFFIX "_linux_scap_report.html"
@@ -63,6 +63,12 @@ struct AgentConfig {
   std::string compliance_profile; // compliance_profile, empty = no compliance scan
   std::string compliance_datastream; // compliance_datastream, empty picks the SCAP Security Guide file
   int scan_timeout_minutes;       // timeout_minutes
+  // [hooks]
+  bool hooks_enabled;             // enabled
+  std::string hooks_dir;          // dir: report hook scripts
+  int hooks_timeout_seconds;      // timeout_seconds, for each hook
+  int hooks_max_output_kb;        // max_output_kb, for each hook
+  std::string hooks_user;         // user: run the hooks as this user, empty = root
   // Full path of the INI file that was read
   std::string ini_path;
 };
@@ -95,8 +101,17 @@ std::string GetAgentHostname();
 std::map<std::string, std::string> ReadOsRelease();
 int OsMajorVersion();
 
+// User a command runs as, see RunCommand
+struct RunAsUser {
+  unsigned int uid;
+  unsigned int gid;
+  std::string name;
+  std::string home;
+};
+
 int RunCommand(const std::vector<std::string> &argv, int timeout_seconds, CommandResult &result,
-               const std::vector<std::string> &extra_env = std::vector<std::string>());
+               const std::vector<std::string> &extra_env = std::vector<std::string>(),
+               const RunAsUser *run_as = NULL);
 std::string FindProgram(const std::string &name);
 
 void LogMessage(const AgentConfig &cfg, const std::string &message);

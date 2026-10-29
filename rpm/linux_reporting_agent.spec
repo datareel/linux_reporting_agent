@@ -6,7 +6,7 @@
 
 Name:           linux_reporting_agent
 Version:        1.0
-Release:        0.beta1%{?dist}
+Release:        0.beta2%{?dist}
 Summary:        DataReel Reporting Agent for Linux: host reports and vulnerability scans for DRSM
 License:        GPL-3.0-or-later
 URL:            https://datareel.com/
@@ -58,12 +58,17 @@ cp -a php drsm %{buildroot}%{_docdir}/%{name}/
 %{_unitdir}/drra.service
 %dir %attr(0700,root,root) %{_sysconfdir}/drra
 %config(noreplace) %attr(0600,root,root) %{_sysconfdir}/drra/drra.ini
+%dir %attr(0755,root,root) %{_sysconfdir}/drra/report.d
 %config(noreplace) %{_sysconfdir}/logrotate.d/drra
 %dir %attr(0700,root,root) %{_localstatedir}/lib/drra
 %dir %attr(0750,root,root) %{_localstatedir}/log/drra
 %{_docdir}/%{name}
 
 %changelog
+* Thu Oct 29 2026 DataReel Software Development - 1.0-0.beta2
+- Report hooks: scripts in /etc/drra/report.d run with each report and
+  their output goes in a HOOKS section for DRSM ([hooks] in drra.ini)
+
 * Thu Oct 29 2026 DataReel Software Development - 1.0-0.beta1
 - First beta: C++ agent, signed HTTPS uploads, CIFS and SCP delivery,
   OpenSCAP OVAL, CSAF/VEX (RHEL 10) and dnf vulnerability scans,
