@@ -2,7 +2,7 @@
 # Built by tools/build_rpms.sh from the source tarball
 # linux_reporting_agent-%{agent_version}.tar.gz
 
-%global agent_version 1.0-beta1
+%global agent_version 1.0-beta2
 
 Name:           linux_reporting_agent
 Version:        1.0
