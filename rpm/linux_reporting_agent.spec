@@ -2,11 +2,11 @@
 # Built by tools/build_rpms.sh from the source tarball
 # linux_reporting_agent-%{agent_version}.tar.gz
 
-%global agent_version 1.0-beta2
+%global agent_version 1.1
 
 Name:           linux_reporting_agent
-Version:        1.0
-Release:        0.beta2%{?dist}
+Version:        1.1
+Release:        1%{?dist}
 Summary:        DataReel Reporting Agent for Linux: host reports and vulnerability scans for DRSM
 License:        GPL-3.0-or-later
 URL:            https://datareel.com/
@@ -74,6 +74,10 @@ exit 0
 %{_docdir}/%{name}
 
 %changelog
+* Fri Oct 30 2026 DataReel Software Development - 1.1-1
+- Release 1.1: first stable release of the 1.0 betas; HTML documentation
+  set (docs/, tools/gen_docs.py)
+
 * Thu Oct 29 2026 DataReel Software Development - 1.0-0.beta2
 - Report hooks: scripts in /etc/drra/report.d run with each report and
   their output goes in a HOOKS section for DRSM ([hooks] in drra.ini)

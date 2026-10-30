@@ -23,11 +23,18 @@
 </header>
 <div class="layout">
   <nav class="sidebar" aria-label="Documentation">
-    <h4>Get started</h4><a href="index.html">Overview</a><a href="install.html">Install the agent</a><a href="server.html">Set up the report server</a><h4>Using the agent</h4><a href="approve.html">Approve hosts</a><a href="configuration.html">Configuration</a><a href="reports.html">Reports and DRSM</a><a href="vulnerabilities.html">Vulnerability scans</a><a href="hooks.html">Hooks</a><h4>Reference</h4><a href="security.html">Security</a><a href="building.html">Build from source</a><a href="troubleshooting.html">Troubleshooting</a><a href="changelog.html" class="active" aria-current="page">What's new</a><div class="toc"><a href="#v10b2">Release 1.0 beta 2</a><a href="#v10b1">Release 1.0 beta 1</a></div><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
+    <h4>Get started</h4><a href="index.html">Overview</a><a href="install.html">Install the agent</a><a href="server.html">Set up the report server</a><h4>Using the agent</h4><a href="approve.html">Approve hosts</a><a href="configuration.html">Configuration</a><a href="reports.html">Reports and DRSM</a><a href="vulnerabilities.html">Vulnerability scans</a><a href="hooks.html">Hooks</a><h4>Reference</h4><a href="security.html">Security</a><a href="building.html">Build from source</a><a href="troubleshooting.html">Troubleshooting</a><a href="changelog.html" class="active" aria-current="page">What's new</a><div class="toc"><a href="#v11">Release 1.1</a><a href="#v10b2">Release 1.0 beta 2</a><a href="#v10b1">Release 1.0 beta 1</a></div><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
   </nav>
   <main class="content" id="main">
 <h1>What's new</h1>
-<p class="lead">Release 1.0 beta 2 (1.0-beta2) adds report hooks and hook uploads. Release 1.0 beta 1 was the first release of the DataReel Reporting Agent for Linux. Both are betas: test them on a few hosts before a wide rollout.</p>
+<p class="lead">Release 1.1 is the first stable release of the DataReel Reporting Agent for Linux. It has everything from the two 1.0 betas: release 1.0 beta 2 added report hooks and hook uploads, and release 1.0 beta 1 was the first release.</p>
+
+<h2 id="v11">Release 1.1 <span class="badge new">October 2026</span></h2>
+<ul>
+  <li><strong>Stable release</strong> of the 1.0 betas, with RPMs for RHEL 8, 9 and 10 (<code>linux_reporting_agent-1.1-1.el&lt;N&gt;.x86_64.rpm</code>).</li>
+  <li><strong>Documentation set:</strong> these pages, also in <code>docs/</code> of the source code, made by <code>tools/gen_docs.py</code>.</li>
+  <li><code>install_server.sh</code> makes the hook uploads folder, lets the DRSM user read it, and blocks <code>hook_lib.php</code> from the web.</li>
+</ul>
 
 <h2 id="v10b2">Release 1.0 beta 2 <span class="badge new">October 2026</span></h2>
 <ul>
@@ -47,6 +54,6 @@
 <nav class="pager" aria-label="Previous and next page"><a class="card prev" href="troubleshooting.html"><small>Previous</small>Troubleshooting</a></nav>
   </main>
 </div>
-<footer class="foot">DataReel Reporting Agent for Linux 1.0 beta 2 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+<footer class="foot">DataReel Reporting Agent for Linux 1.1 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
 </body>
 </html>

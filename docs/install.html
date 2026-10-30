@@ -40,10 +40,10 @@
 
 <h2 id="rpm">Install the RPM</h2>
 <p>Download the RPM for your release from the <a href="https://datareel.com/downloads/linux_reporting_agent/">downloads page</a> (<code>el8</code>, <code>el9</code> or <code>el10</code>) and check it against its <code>.sha256sum</code> file:</p>
-<pre><code><span class="p">$ </span>wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.0-0.beta2.el9.x86_64.rpm
-<span class="p">$ </span>wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.0-0.beta2.el9.x86_64.rpm.sha256sum
-<span class="p">$ </span>sha256sum -c linux_reporting_agent-1.0-0.beta2.el9.x86_64.rpm.sha256sum
-<span class="r"># </span>dnf install ./linux_reporting_agent-1.0-0.beta2.el9.x86_64.rpm
+<pre><code><span class="p">$ </span>wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1-1.el9.x86_64.rpm
+<span class="p">$ </span>wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1-1.el9.x86_64.rpm.sha256sum
+<span class="p">$ </span>sha256sum -c linux_reporting_agent-1.1-1.el9.x86_64.rpm.sha256sum
+<span class="r"># </span>dnf install ./linux_reporting_agent-1.1-1.el9.x86_64.rpm
 <span class="r"># </span>dnf install openscap-scanner          # RHEL 8 and 9 vulnerability scans</code></pre>
 <p>The RPM installs the agent, its settings, the systemd unit and a logrotate file, and makes the <code>drra-upload</code> group. It does not start the service: set the server first.</p>
 
@@ -81,6 +81,6 @@ enabled=1             ; optional, see Vulnerability scans</code></pre>
 <nav class="pager" aria-label="Previous and next page"><a class="card prev" href="index.html"><small>Previous</small>Overview</a><a class="card next" href="server.html"><small>Next</small>Set up the report server</a></nav>
   </main>
 </div>
-<footer class="foot">DataReel Reporting Agent for Linux 1.0 beta 2 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+<footer class="foot">DataReel Reporting Agent for Linux 1.1 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
 </body>
 </html>

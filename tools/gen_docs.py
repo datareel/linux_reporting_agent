@@ -6,7 +6,7 @@ import os, sys
 OUT = sys.argv[1]
 DL = "https://datareel.com/downloads/linux_reporting_agent/"
 DEMO = ""
-VERSION = "1.0 beta 2"
+VERSION = "1.1"
 
 ICON_MENU = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>'
 ICON_DEMO = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>'
@@ -231,10 +231,10 @@ page("install.html", "Install the agent",
 
 <h2 id="rpm">Install the RPM</h2>
 <p>Download the RPM for your release from the <a href="https://datareel.com/downloads/linux_reporting_agent/">downloads page</a> (<code>el8</code>, <code>el9</code> or <code>el10</code>) and check it against its <code>.sha256sum</code> file:</p>
-""" + code([("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.0-0.beta2.el9.x86_64.rpm"),
-            ("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.0-0.beta2.el9.x86_64.rpm.sha256sum"),
-            ("$", "sha256sum -c linux_reporting_agent-1.0-0.beta2.el9.x86_64.rpm.sha256sum"),
-            ("#", "dnf install ./linux_reporting_agent-1.0-0.beta2.el9.x86_64.rpm"),
+""" + code([("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1-1.el9.x86_64.rpm"),
+            ("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1-1.el9.x86_64.rpm.sha256sum"),
+            ("$", "sha256sum -c linux_reporting_agent-1.1-1.el9.x86_64.rpm.sha256sum"),
+            ("#", "dnf install ./linux_reporting_agent-1.1-1.el9.x86_64.rpm"),
             ("#", "dnf install openscap-scanner          # RHEL 8 and 9 vulnerability scans")]) + """
 <p>The RPM installs the agent, its settings, the systemd unit and a logrotate file, and makes the <code>drra-upload</code> group. It does not start the service: set the server first.</p>
 
@@ -490,7 +490,7 @@ page("reports.html", "Reports and DRSM",
 
 <h2 id="format">Report format</h2>
 <p>The server saves the report as <code>&lt;host&gt;_linux_report_agent.txt</code>. It starts with <code>KEY: value</code> headers (<code>VERSION</code>, <code>PLATFORM: linux</code>, <code>HOSTNAME</code>, <code>ETIME</code>, <code>DATETIME</code>), followed by sections of <code>name=value</code> lines. Values with spaces are quoted.</p>
-""" + code([("", "VERSION: 1.0-beta2"), ("", "PLATFORM: linux"), ("", "HOSTNAME: web1.example.com"), ("", "..."),
+""" + code([("", "VERSION: 1.1"), ("", "PLATFORM: linux"), ("", "HOSTNAME: web1.example.com"), ("", "..."),
             ("", "PERFORMANCE:"), ("", "cpu_used_pct=7.4"), ("", "load_15m=0.31"), ("", "mem_available_mb=5120"), ("", "END PERFORMANCE")]) + """
 <p><code>drra report</code> prints one without sending it.</p>
 
@@ -672,8 +672,8 @@ page("building.html", "Build from source",
 """ + code([("#", "dnf install gcc-c++ make openssl-devel libcurl-devel libxml2-devel bzip2-devel zlib-devel")]) + """
 
 <h2 id="make">Build with make</h2>
-""" + code([("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.0-beta2.tar.gz"),
-            ("$", "tar xzf linux_reporting_agent-1.0-beta2.tar.gz && cd linux_reporting_agent-1.0-beta2"),
+""" + code([("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1.tar.gz"),
+            ("$", "tar xzf linux_reporting_agent-1.1.tar.gz && cd linux_reporting_agent-1.1"),
             ("$", "make"),
             ("#", "make install            # /usr/sbin/drra, /etc/drra, the systemd unit"),
             ("#", "systemctl daemon-reload")]) + """
@@ -744,10 +744,17 @@ page("troubleshooting.html", "Troubleshooting",
 # ---------------------------------------------------------------- changelog
 page("changelog.html", "What's new",
      "DataReel Reporting Agent for Linux release history.",
-     [("v10b2", "Release 1.0 beta 2"), ("v10b1", "Release 1.0 beta 1")],
+     [("v11", "Release 1.1"), ("v10b2", "Release 1.0 beta 2"), ("v10b1", "Release 1.0 beta 1")],
      """
 <h1>What's new</h1>
-<p class="lead">Release 1.0 beta 2 (1.0-beta2) adds report hooks and hook uploads. Release 1.0 beta 1 was the first release of the DataReel Reporting Agent for Linux. Both are betas: test them on a few hosts before a wide rollout.</p>
+<p class="lead">Release 1.1 is the first stable release of the DataReel Reporting Agent for Linux. It has everything from the two 1.0 betas: release 1.0 beta 2 added report hooks and hook uploads, and release 1.0 beta 1 was the first release.</p>
+
+<h2 id="v11">Release 1.1 <span class="badge new">October 2026</span></h2>
+<ul>
+  <li><strong>Stable release</strong> of the 1.0 betas, with RPMs for RHEL 8, 9 and 10 (<code>linux_reporting_agent-1.1-1.el&lt;N&gt;.x86_64.rpm</code>).</li>
+  <li><strong>Documentation set:</strong> these pages, also in <code>docs/</code> of the source code, made by <code>tools/gen_docs.py</code>.</li>
+  <li><code>install_server.sh</code> makes the hook uploads folder, lets the DRSM user read it, and blocks <code>hook_lib.php</code> from the web.</li>
+</ul>
 
 <h2 id="v10b2">Release 1.0 beta 2 <span class="badge new">October 2026</span></h2>
 <ul>

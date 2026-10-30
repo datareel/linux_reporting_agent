@@ -98,7 +98,7 @@ example `cis_server_l1` or `stig` (needs `scap-security-guide`).
 ## Install
 
 ```
-# dnf install ./linux_reporting_agent-1.0-0.beta1.el9.x86_64.rpm
+# dnf install ./linux_reporting_agent-1.1-1.el9.x86_64.rpm
 # dnf install openscap-scanner          # RHEL 8 and 9 scans
 # vi /etc/drra/drra.ini                 # [https] host, enrollment_token, [scan] enabled=1
 # drra report | less                    # look at a report, nothing is sent
