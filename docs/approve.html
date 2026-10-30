@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Approve hosts | DataReel Reporting Agent for Linux Documentation</title>
+<meta name="description" content="Approve, revoke and delete DataReel Reporting Agent for Linux hosts on the admin page.">
+<link rel="icon" href="images/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="docs.css">
+<script src="docs.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="tool icon-only menu-btn" type="button" data-action="menu" aria-label="Menu" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <a class="brand" href="index.html"><img src="images/logo.svg" alt="">DataReel Reporting Agent for Linux <small>Documentation</small></a>
+    <span class="spacer"></span>
+    
+    <a class="tool hide-sm" href="https://datareel.com/downloads/linux_reporting_agent/"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Downloads</span></a>
+    <button class="tool icon-only" type="button" data-action="theme" aria-label="Switch light or dark theme"><svg class="icon sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="icon moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar" aria-label="Documentation">
+    <h4>Get started</h4><a href="index.html">Overview</a><a href="install.html">Install the agent</a><a href="server.html">Set up the report server</a><h4>Using the agent</h4><a href="approve.html" class="active" aria-current="page">Approve hosts</a><div class="toc"><a href="#states">Host states</a><a href="#fingerprint">Check the fingerprint</a><a href="#token">Enrollment token</a><a href="#reinstall">Reinstalled hosts</a></div><a href="configuration.html">Configuration</a><a href="reports.html">Reports and DRSM</a><a href="vulnerabilities.html">Vulnerability scans</a><a href="hooks.html">Hooks</a><h4>Reference</h4><a href="security.html">Security</a><a href="building.html">Build from source</a><a href="troubleshooting.html">Troubleshooting</a><a href="changelog.html">What's new</a><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
+  </nav>
+  <main class="content" id="main">
+<h1>Approve hosts</h1>
+<p class="lead">A host registers its certificate on its first run and sends nothing until it is approved, on the admin page or with the enrollment token.</p>
+
+<h2 id="states">Host states</h2>
+<div class="table-wrap"><table><thead><tr><th>State</th><th>Meaning</th></tr></thead><tbody><tr><td>pending</td><td>Registered, waiting for an admin. The agent tries again every cycle.</td></tr><tr><td>approved</td><td>Reports are accepted</td></tr><tr><td>revoked</td><td>Reports are refused until an admin approves the host again</td></tr></tbody></table></div>
+<p><code>admin.php</code> lists each host with its state, key fingerprint, registration time and last report, with buttons to approve, revoke and delete it (with CSRF protection).</p>
+
+<h2 id="fingerprint">Check the fingerprint</h2>
+<p>Before you approve a pending host, check that the fingerprint on the admin page is the one on the host:</p>
+<pre><code><span class="r"># </span>drra fingerprint</code></pre>
+<p>The fingerprint is also in <code>/var/log/drra/drra.log</code>.</p>
+
+<h2 id="token">Enrollment token</h2>
+<p>With <code>enrollment_token</code> set in <code>server.ini</code> and the same value in each agent's <code>drra.ini</code>, hosts are approved as they register. That suits large rollouts with Ansible or a kickstart file. Change the token after a rollout, or empty it, so new hosts need an admin again. Hosts already approved keep reporting.</p>
+
+<h2 id="reinstall">Reinstalled hosts</h2>
+<p>A host is registered by its host name, and the certificate's CN must match it. A reinstalled host makes a new key, and the server answers <code>key_mismatch</code> until an admin deletes the old registration. Then the host registers again on its next cycle. Two hosts with the same host name cannot both report.</p>
+<nav class="pager" aria-label="Previous and next page"><a class="card prev" href="server.html"><small>Previous</small>Set up the report server</a><a class="card next" href="configuration.html"><small>Next</small>Configuration</a></nav>
+  </main>
+</div>
+<footer class="foot">DataReel Reporting Agent for Linux 1.0 beta 2 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+</body>
+</html>

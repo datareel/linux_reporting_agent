@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security | DataReel Reporting Agent for Linux Documentation</title>
+<meta name="description" content="DataReel Reporting Agent for Linux security: agent key and certificate, registration, signed uploads, TLS, the hardened service and their limits.">
+<link rel="icon" href="images/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="docs.css">
+<script src="docs.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="tool icon-only menu-btn" type="button" data-action="menu" aria-label="Menu" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <a class="brand" href="index.html"><img src="images/logo.svg" alt="">DataReel Reporting Agent for Linux <small>Documentation</small></a>
+    <span class="spacer"></span>
+    
+    <a class="tool hide-sm" href="https://datareel.com/downloads/linux_reporting_agent/"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Downloads</span></a>
+    <button class="tool icon-only" type="button" data-action="theme" aria-label="Switch light or dark theme"><svg class="icon sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="icon moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar" aria-label="Documentation">
+    <h4>Get started</h4><a href="index.html">Overview</a><a href="install.html">Install the agent</a><a href="server.html">Set up the report server</a><h4>Using the agent</h4><a href="approve.html">Approve hosts</a><a href="configuration.html">Configuration</a><a href="reports.html">Reports and DRSM</a><a href="vulnerabilities.html">Vulnerability scans</a><a href="hooks.html">Hooks</a><h4>Reference</h4><a href="security.html" class="active" aria-current="page">Security</a><div class="toc"><a href="#identity">Agent identity</a><a href="#registration">Registration</a><a href="#uploads">Signed uploads</a><a href="#tls">TLS</a><a href="#service">The service</a><a href="#server">Server side</a><a href="#limits">Limits</a></div><a href="building.html">Build from source</a><a href="troubleshooting.html">Troubleshooting</a><a href="changelog.html">What's new</a><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
+  </nav>
+  <main class="content" id="main">
+<h1>Security</h1>
+<p class="lead">The host only makes outgoing connections, and the server only keeps reports signed by approved hosts.</p>
+
+<h2 id="identity">Agent identity</h2>
+<p>On its first run the agent makes an RSA 3072 key and a self-signed certificate (CN = the host name, valid 20 years) in <code>/var/lib/drra</code>, readable by root only. The key never leaves the host.</p>
+
+<h2 id="registration">Registration</h2>
+<p>The agent sends its certificate to <code>register.php</code> with a time stamp and a one time nonce, signed with its key, which proves it holds the key. The server checks that the certificate's CN is the host name, and saves the registration as pending, or approved when the enrollment token matches. A host name that is already registered with another key gets <code>key_mismatch</code>.</p>
+
+<h2 id="uploads">Signed uploads</h2>
+<p>Each upload carries the report's SHA-256 hash (and the hash of each HTML report or hook file), the host name, a time stamp and a nonce, signed with RSA PKCS#1 v1.5 and SHA-256. The server checks the signature against the registered certificate, refuses agents that are not approved, refuses a time stamp more than <code>max_clock_skew_seconds</code> (300) from its clock, and refuses a nonce it has seen, so a captured upload cannot be sent again.</p>
+
+<h2 id="tls">TLS</h2>
+<p>Uploads use HTTPS through libcurl and OpenSSL with certificate and host name checks against the system trust store, or <code>ca_file</code> for a private CA. <code>verify_peer=0</code> and <code>use_https=0</code> exist for test servers only.</p>
+
+<h2 id="service">The service</h2>
+<p>The agent runs as root to read the package database, SELinux, firewalld and sshd settings and the DMI serial number. The systemd unit makes <code>/usr</code>, <code>/boot</code> and <code>/etc</code> read only, home folders read only, <code>/tmp</code> private, and sets <code>NoNewPrivileges</code>, kernel tunable and module protection, at low CPU and I/O priority. Files the agent writes are private to root. Report hooks run only from root owned, not group or world writable files, and can run as another user.</p>
+
+<h2 id="server">Server side</h2>
+<ul>
+  <li>Keep <code>server.ini</code> and the data folder outside the web root, or behind the <code>Require all denied</code> <code>.htaccess</code> that <code>install_server.sh</code> adds.</li>
+  <li><code>admin.php</code> runs only behind a login (web server or DRSM dashboard) and uses CSRF tokens.</li>
+  <li>The include files and <code>vex_sync.php</code> are blocked from the web.</li>
+  <li>Hook uploads are taken only for hook IDs with a manifest, up to <code>max_bytes</code>.</li>
+</ul>
+
+<h2 id="limits">Limits</h2>
+<ul>
+  <li>Anyone with root on a host can read its key and send reports as that host. Revoke a host that was compromised.</li>
+  <li>With an enrollment token, anyone who has the token can register a new host name. Keep the token secret and empty it after a rollout.</li>
+  <li>Reports hold the host's package list, users and settings: protect the reports folder and the DRSM dashboard with a login.</li>
+</ul>
+<nav class="pager" aria-label="Previous and next page"><a class="card prev" href="hooks.html"><small>Previous</small>Hooks</a><a class="card next" href="building.html"><small>Next</small>Build from source</a></nav>
+  </main>
+</div>
+<footer class="foot">DataReel Reporting Agent for Linux 1.0 beta 2 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+</body>
+</html>

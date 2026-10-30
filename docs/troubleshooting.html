@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Troubleshooting | DataReel Reporting Agent for Linux Documentation</title>
+<meta name="description" content="DataReel Reporting Agent for Linux log messages and what to do about them.">
+<link rel="icon" href="images/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="docs.css">
+<script src="docs.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="tool icon-only menu-btn" type="button" data-action="menu" aria-label="Menu" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <a class="brand" href="index.html"><img src="images/logo.svg" alt="">DataReel Reporting Agent for Linux <small>Documentation</small></a>
+    <span class="spacer"></span>
+    
+    <a class="tool hide-sm" href="https://datareel.com/downloads/linux_reporting_agent/"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Downloads</span></a>
+    <button class="tool icon-only" type="button" data-action="theme" aria-label="Switch light or dark theme"><svg class="icon sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="icon moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar" aria-label="Documentation">
+    <h4>Get started</h4><a href="index.html">Overview</a><a href="install.html">Install the agent</a><a href="server.html">Set up the report server</a><h4>Using the agent</h4><a href="approve.html">Approve hosts</a><a href="configuration.html">Configuration</a><a href="reports.html">Reports and DRSM</a><a href="vulnerabilities.html">Vulnerability scans</a><a href="hooks.html">Hooks</a><h4>Reference</h4><a href="security.html">Security</a><a href="building.html">Build from source</a><a href="troubleshooting.html" class="active" aria-current="page">Troubleshooting</a><div class="toc"><a href="#log">The log file</a><a href="#messages">Messages</a><a href="#server">Server side</a></div><a href="changelog.html">What's new</a><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
+  </nav>
+  <main class="content" id="main">
+<h1>Troubleshooting</h1>
+<p class="lead">Start with the agent log. It has the result of the last report for each delivery method.</p>
+
+<h2 id="log">The log file</h2>
+<p><code>/var/log/drra/drra.log</code>, and <code>journalctl -u drra</code>. Run <code>drra once</code> as root to get a fresh result right away, and <code>drra config</code> to see the settings in use.</p>
+
+<h2 id="messages">Messages</h2>
+<div class="table-wrap"><table><thead><tr><th>Message</th><th>What to do</th></tr></thead><tbody><tr><td><code>Registration status from server: pending</code></td><td>Approve the host on the admin page (check <code>drra fingerprint</code>), or set the enrollment token</td></tr><tr><td><code>key_mismatch</code></td><td>The host was reinstalled or its key changed. Delete its old registration on the admin page.</td></tr><tr><td><code>revoked</code></td><td>An admin revoked the host. Approve it again if that was a mistake.</td></tr><tr><td><code>bad_timestamp</code></td><td>Fix the clock on the host or the server (chronyd); allowed difference: <code>max_clock_skew_seconds</code></td></tr><tr><td><code>bad_token</code></td><td>The enrollment token in <code>drra.ini</code> does not match <code>server.ini</code></td></tr><tr><td><code>bad_signature</code></td><td>The request was changed on the way, or the key does not match the registration</td></tr><tr><td><code>Request to ... failed: SSL certificate problem</code></td><td>The host does not trust the server's certificate: install the CA in the system trust store or set <code>ca_file</code></td></tr><tr><td><code>Request to ... failed: Could not resolve host</code> or <code>Connection refused</code></td><td>Check <code>host</code> and <code>port</code>, DNS, and outgoing firewall rules</td></tr><tr><td><code>Unexpected answer from ... (HTTP 404)</code></td><td><code>upload_path</code> or <code>register_path</code> is wrong</td></tr><tr><td><code>NT_STATUS_...</code></td><td>The CIFS copy failed: share name, <code>credentials_file</code>, or permissions on the share</td></tr><tr><td><code>Host key verification failed</code></td><td>Add the SCP server to <code>known_hosts_file</code>, or use <code>accept-new</code> once</td></tr><tr><td>Scan status <code>failed</code></td><td>Run <code>drra scan</code> to see the error: <code>openscap-scanner</code> missing, the feed cannot be downloaded, or the CSAF/VEX index is missing on the server</td></tr><tr><td>Hook <code>skipped=</code></td><td>The hook file or folder is not owned by root, or is group or world writable</td></tr></tbody></table></div>
+
+<h2 id="server">Server side</h2>
+<ul>
+  <li><code>STATUS: error</code> about saving a registration or a report: the web server user cannot write to the data folder or <code>reports_dir</code>. Check the owner, ACL and, with SELinux, the <code>httpd_sys_rw_content_t</code> label (<code>ls -Z</code>).</li>
+  <li><code>admin.php</code> refuses to run: the <code>.htaccess</code> login is not active (check <code>AllowOverride</code>), or <code>drsm_config</code> is wrong with <code>login = drsm</code>.</li>
+  <li><code>vex_index.php</code> answers 404: <code>vex_sync.php</code> has not built the index yet.</li>
+  <li>Check the Apache error log for PHP errors.</li>
+</ul>
+<nav class="pager" aria-label="Previous and next page"><a class="card prev" href="building.html"><small>Previous</small>Build from source</a><a class="card next" href="changelog.html"><small>Next</small>What's new</a></nav>
+  </main>
+</div>
+<footer class="foot">DataReel Reporting Agent for Linux 1.0 beta 2 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hooks | DataReel Reporting Agent for Linux Documentation</title>
+<meta name="description" content="DataReel Reporting Agent for Linux report hooks (site checks in every report) and hook uploads (reports from other tools).">
+<link rel="icon" href="images/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="docs.css">
+<script src="docs.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="tool icon-only menu-btn" type="button" data-action="menu" aria-label="Menu" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <a class="brand" href="index.html"><img src="images/logo.svg" alt="">DataReel Reporting Agent for Linux <small>Documentation</small></a>
+    <span class="spacer"></span>
+    
+    <a class="tool hide-sm" href="https://datareel.com/downloads/linux_reporting_agent/"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Downloads</span></a>
+    <button class="tool icon-only" type="button" data-action="theme" aria-label="Switch light or dark theme"><svg class="icon sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="icon moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar" aria-label="Documentation">
+    <h4>Get started</h4><a href="index.html">Overview</a><a href="install.html">Install the agent</a><a href="server.html">Set up the report server</a><h4>Using the agent</h4><a href="approve.html">Approve hosts</a><a href="configuration.html">Configuration</a><a href="reports.html">Reports and DRSM</a><a href="vulnerabilities.html">Vulnerability scans</a><a href="hooks.html" class="active" aria-current="page">Hooks</a><div class="toc"><a href="#report">Report hooks</a><a href="#rules">Hook rules</a><a href="#drsm">Hooks in DRSM</a><a href="#uploads">Hook uploads</a><a href="#server">Server manifests</a><a href="#which">Which one to use</a></div><h4>Reference</h4><a href="security.html">Security</a><a href="building.html">Build from source</a><a href="troubleshooting.html">Troubleshooting</a><a href="changelog.html">What's new</a><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
+  </nav>
+  <main class="content" id="main">
+<h1>Hooks</h1>
+<p class="lead">Two kinds of hooks add what the agent does not know about: report hooks run a site check with every report, and hook uploads send a file some other tool makes.</p>
+
+<h2 id="report">Report hooks</h2>
+<p>Every executable file in <code>/etc/drra/report.d</code> runs once per report, one at a time, stopped after <code>[hooks] timeout_seconds</code> (60). A hook prints lines in the DRSM plugin format (<code>INFO - </code>, <code>WARNING - </code>, <code>ERROR - </code>, <code>METRIC</code>, <code>DETAIL</code> and free text) and exits 0 OK, 1 WARNING, 2 ERROR or 3 UNKNOWN. Its name is the file name without <code>.sh</code>. The report gets them in one section:</p>
+<pre><code>HOOKS:
+hook=drcm exit=0 secs=1 timed_out=0 truncated=0
+| INFO - node1 cluster status is HEALTHY, 2 nodes up, 1 resources
+| METRIC drcm_nodes_up=2
+END HOOKS</code></pre>
+<p><code>drra hooks</code> runs them now and prints the section.</p>
+
+<h2 id="rules">Hook rules</h2>
+<ul>
+  <li>The agent runs as root, so a hook only runs when <code>report.d</code> and the file are owned by root and not group or world writable. Others are listed as <code>skipped=</code> and logged.</li>
+  <li>Names may use letters, digits, dot, dash and underscore. <code>.rpmnew</code>, <code>.bak</code>, <code>.swp</code>, <code>.disabled</code> and similar files are skipped.</li>
+  <li><code>[hooks] user=</code> runs them as another user. Then point <code>dir</code> at a folder that user can reach, since <code>/etc/drra</code> is root only.</li>
+</ul>
+
+<h2 id="drsm">Hooks in DRSM</h2>
+<p>A DRSM plugin with <code>LRA_HOOK=&lt;name&gt;</code> in its manifest shows that hook as its own check on agent hosts (the <code>cluster/drcm</code> plugin does this), and <code>linux/hooks</code> shows every hook. DRSM's <code>utils/lra_hook_bundle.sh</code> writes a DRSM plugin as one self-contained hook file:</p>
+<pre><code><span class="p">$ </span>~/drsm/utils/lra_hook_bundle.sh cluster/drcm &gt; drcm
+<span class="r"># </span>install -o root -g root -m 0755 drcm /etc/drra/report.d/drcm
+<span class="r"># </span>drra hooks</code></pre>
+
+<h2 id="uploads">Hook uploads</h2>
+<p>A hook upload sends a report from another source with the agent: a scan you run by hand (so a cloud server does not pay for a daily scan), a vendor tool's export, a backup job's result. Each upload hook is a file in <code>/etc/drra/uploads.d/</code> (root owned, not group or world writable):</p>
+<pre><code><span class="r"># </span>cat /etc/drra/uploads.d/openscap_manual.ini
+[upload]
+id=openscap_manual
+title=Manual OpenSCAP scan
+format=xccdf-results
+<span class="r"># </span>oscap xccdf eval --profile cis_server_l1 --results /tmp/results.xml \
+    /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
+<span class="r"># </span>drra submit --hook openscap_manual --now /tmp/results.xml</code></pre>
+<p>A tool can also write its file to <code>/var/spool/drra/uploads/&lt;id&gt;/</code> (write a dot or <code>.tmp</code> file, then rename it). Members of the <code>drra-upload</code> group may do both. Files go to <code>hook.php</code> on the report server after each report, or within seconds with <code>--now</code>. <code>drra send-uploads</code> sends them right away and <code>drra uploads</code> lists them. Sent files are kept in <code>&lt;spool&gt;/&lt;id&gt;/sent/</code>, and the report's UPLOADS section has each upload hook's state. Uploads use the https delivery method.</p>
+
+<h2 id="server">Server manifests</h2>
+<p>The report server only takes an upload hook that has a manifest: the DRSM plugin <code>plugins/uploads/&lt;id&gt;/plugin.conf</code>, in the folder named by <code>[hooks] manifest_dir</code> in <code>server.ini</code>. The manifest picks the format (<code>drsm-lines</code>, <code>kv-sections</code>, <code>json</code>, <code>csv</code>, <code>xccdf-results</code>, <code>text</code>, <code>html</code>), the alert rules and how DRSM shows the data. See "Hook uploads" in DRSM's PLUGINS.md.</p>
+
+<h2 id="which">Which one to use</h2>
+<p>Use a report hook for a check that must run on the host each time; use a hook upload for a file that some other tool makes now and then.</p>
+<nav class="pager" aria-label="Previous and next page"><a class="card prev" href="vulnerabilities.html"><small>Previous</small>Vulnerability scans</a><a class="card next" href="security.html"><small>Next</small>Security</a></nav>
+  </main>
+</div>
+<footer class="foot">DataReel Reporting Agent for Linux 1.0 beta 2 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+</body>
+</html>

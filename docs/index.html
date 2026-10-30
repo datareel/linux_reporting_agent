@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DataReel Reporting Agent for Linux Documentation</title>
+<meta name="description" content="DataReel Reporting Agent for Linux documentation: host reports, updates and vulnerability scans for RHEL 8, 9 and 10, sent over HTTPS to a report server and the DataReel System Monitor.">
+<link rel="icon" href="images/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="docs.css">
+<script src="docs.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="tool icon-only menu-btn" type="button" data-action="menu" aria-label="Menu" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <a class="brand" href="index.html"><img src="images/logo.svg" alt="">DataReel Reporting Agent for Linux <small>Documentation</small></a>
+    <span class="spacer"></span>
+    
+    <a class="tool hide-sm" href="https://datareel.com/downloads/linux_reporting_agent/"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Downloads</span></a>
+    <button class="tool icon-only" type="button" data-action="theme" aria-label="Switch light or dark theme"><svg class="icon sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="icon moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar" aria-label="Documentation">
+    <h4>Get started</h4><a href="index.html" class="active" aria-current="page">Overview</a><div class="toc"><a href="#what">What it reports</a><a href="#how">How it works</a><a href="#who">Who it is for</a><a href="#start">Get started</a><a href="#docs">Other documentation</a></div><a href="install.html">Install the agent</a><a href="server.html">Set up the report server</a><h4>Using the agent</h4><a href="approve.html">Approve hosts</a><a href="configuration.html">Configuration</a><a href="reports.html">Reports and DRSM</a><a href="vulnerabilities.html">Vulnerability scans</a><a href="hooks.html">Hooks</a><h4>Reference</h4><a href="security.html">Security</a><a href="building.html">Build from source</a><a href="troubleshooting.html">Troubleshooting</a><a href="changelog.html">What's new</a><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
+  </nav>
+  <main class="content" id="main">
+<section class="hero">
+  <span class="badge new">New October 2026</span>
+  <h1 style="margin-top:14px">DataReel Reporting Agent for Linux</h1>
+  <p class="lead">A small C++ service for RHEL 8, 9 and 10 that sends a report about its host every 15 minutes to a report server: system, usage, security settings, updates, the Red Hat security advisories that apply, and the installed packages. The host only makes outgoing HTTPS connections, so the DataReel System Monitor can watch it over the internet, from behind NAT or a firewall, with no SSH access.</p>
+  <div class="actions">
+    <a class="tool primary" href="install.html">Install the agent</a>
+    <a class="tool" href="server.html">Set up the report server</a>
+    <a class="tool" href="vulnerabilities.html">Vulnerability scans</a>
+    <a class="tool" href="changelog.html">What's new</a>
+  </div>
+</section>
+
+<h2 id="what">What it reports</h2>
+<div class="grid">
+  <div class="card"><h3>System</h3><p>Release, kernel, vendor, model, serial number, virtualization, time zone and IP addresses.</p></div>
+  <div class="card"><h3>Usage</h3><p>CPU, iowait, steal, load, memory, swap, every local file system (space and inodes) and network traffic, with the same metric names as DRSM's SSH plugins, so the trend graphs work.</p></div>
+  <div class="card"><h3>Security settings</h3><p>SELinux, firewalld or nftables, auditd, FIPS, sshd root and password login, automatic updates, logged in users, accounts with a login shell and failed systemd units.</p></div>
+  <div class="card"><h3>Updates</h3><p>Pending package updates, the last package install, and whether a restart is needed for a new kernel.</p></div>
+  <div class="card"><h3>Vulnerabilities</h3><p>The Red Hat security advisories the host still needs, with severity, CVEs and fixed packages, from OpenSCAP (RHEL 8 and 9) or Red Hat CSAF/VEX data (RHEL 10). Off by default.</p></div>
+  <div class="card"><h3>Hooks</h3><p>Site checks in <code>/etc/drra/report.d</code> run with every report, and reports from other tools are sent with the agent's hook uploads.</p></div>
+</div>
+
+<h2 id="how">How it works</h2>
+<p>The agent is the <code>drra</code> program, run by the <code>drra.service</code> systemd unit. Every 15 minutes (<code>report_interval_minutes</code>) it writes a plain text report and delivers it. On its first run it creates an RSA key and a certificate and registers the certificate with the report server. After an admin approves the host, or it sends the right enrollment token, every report it uploads is signed, and the server only accepts reports that are signed by the host they claim to be from.</p>
+<svg class="diagram" viewBox="0 0 860 330" role="img" aria-labelledby="dg-t">
+<title id="dg-t">How the DataReel Reporting Agent for Linux works: each Linux host runs the drra service, which registers its certificate and uploads signed reports over HTTPS to the PHP pages on a report server, or copies them to a file share or SSH server. DRSM reads the reports and shows the hosts, their alerts, trends and vulnerabilities on its dashboard.</title>
+<defs>
+  <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+  <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah hi" d="M0 0L10 5L0 10z"/></marker>
+  <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah alt" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<rect class="box hi" x="20" y="20" width="250" height="150" rx="14"/>
+<text class="t" x="40" y="50">Linux hosts</text>
+<text class="s" x="40" y="70">RHEL 8, 9 and 10, cloud or on site</text>
+<text class="m" x="40" y="98">drra.service (systemd)</text>
+<text class="s" x="40" y="120">report every 15 minutes</text>
+<text class="s" x="40" y="138">RSA key + certificate</text>
+
+<rect class="box" x="370" y="20" width="250" height="150" rx="14"/>
+<text class="t" x="390" y="50">Report server</text>
+<text class="s" x="390" y="70">Apache + PHP, local or hosted</text>
+<text class="m" x="390" y="98">register.php</text>
+<text class="m" x="390" y="120">upload.php, hook.php</text>
+<text class="m" x="390" y="142">admin.php, vex_index.php</text>
+
+<rect class="box" x="370" y="230" width="250" height="80" rx="14"/>
+<text class="t" x="390" y="260">Reports</text>
+<text class="s" x="390" y="284">one text file per host + scan HTML</text>
+
+<rect class="box alt" x="690" y="20" width="150" height="150" rx="14"/>
+<text class="t" x="708" y="50">Admins</text>
+<text class="s" x="708" y="74">approve or</text>
+<text class="s" x="708" y="92">revoke hosts</text>
+
+<rect class="box alt" x="690" y="230" width="150" height="80" rx="14"/>
+<text class="t" x="708" y="260">DRSM</text>
+<text class="s" x="708" y="284">alerts, trends, CVEs</text>
+
+<rect class="box" x="20" y="230" width="250" height="80" rx="14"/>
+<text class="t" x="40" y="260">Or a file share / SSH</text>
+<text class="s" x="40" y="284">smbclient copy, scp</text>
+
+<path class="ln hi" d="M270 95H368" marker-end="url(#a2)"/>
+<text class="lbl" x="319" y="86" text-anchor="middle">signed</text>
+<text class="lbl" x="319" y="112" text-anchor="middle">HTTPS</text>
+<path class="ln" d="M495 170V228" marker-end="url(#a1)"/>
+<path class="ln alt" d="M688 95H622" marker-end="url(#a3)"/>
+<path class="ln alt" d="M620 270H688" marker-end="url(#a3)"/>
+<path class="ln" d="M145 170V228" marker-end="url(#a1)"/>
+</svg>
+<p>The report can also, or instead, be copied to a Windows file share (with <code>smbclient</code>) or to an SSH server. The reports are plain text files, one per host. The <a href="https://datareel.com/info_drsm.php">DataReel System Monitor</a> (DRSM) checks agent hosts from their last report with its <code>lra</code> collector and <code>linux/*</code> plugins, and shows every host's advisories on its Vulnerabilities page.</p>
+
+<h2 id="who">Who it is for</h2>
+<p>DRSM monitors Linux hosts it can reach over SSH without any agent. The agent is for the hosts it cannot reach:</p>
+<ul>
+  <li>Cloud servers and VPS hosts where you do not want SSH open to the monitor.</li>
+  <li>Hosts behind NAT, a firewall or a VPN the monitor is not on.</li>
+  <li>Hosts at other sites or customers, reporting to a hosted dashboard on shared hosting.</li>
+  <li>Hosts where you want a daily list of the security advisories and CVEs that apply.</li>
+</ul>
+<p>It is the Linux counterpart of the <a href="https://datareel.com/info_windows_reporting_agent.php">DataReel Reporting Agent for Windows</a> and uses the same signed upload protocol, so one report server and one DRSM dashboard can take both.</p>
+
+<h2 id="start">Get started</h2>
+<div class="grid">
+  <a class="card" href="server.html"><h3>1. Set up the report server</h3><p>Copy the PHP pages to an Apache and PHP host with <code>install_server.sh</code>. Shared hosting works.</p></a>
+  <a class="card" href="install.html"><h3>2. Install the agent</h3><p>Install the RPM for RHEL 8, 9 or 10, set the server in <code>/etc/drra/drra.ini</code> and start the service.</p></a>
+  <a class="card" href="approve.html"><h3>3. Approve the hosts</h3><p>Check each host's key fingerprint on the admin page, or use an enrollment token.</p></a>
+  <a class="card" href="reports.html"><h3>4. Add the hosts to DRSM</h3><p>Point DRSM at the reports and make a host file for each agent with <code>lra_hosts.sh</code>.</p></a>
+</div>
+
+<h2 id="docs">Other documentation</h2>
+<ul>
+  <li><code>README.md</code> in the source code covers the same ground as plain text, and is installed in <code>/usr/share/doc/linux_reporting_agent</code>.</li>
+  <li><code>/etc/drra/drra.ini</code> describes every agent setting, and <code>php/server.ini.example</code> every server setting.</li>
+  <li><code>drra help</code> lists the commands.</li>
+</ul>
+<nav class="pager" aria-label="Previous and next page"><a class="card next" href="install.html"><small>Next</small>Install the agent</a></nav>
+  </main>
+</div>
+<footer class="foot">DataReel Reporting Agent for Linux 1.0 beta 2 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+</body>
+</html>

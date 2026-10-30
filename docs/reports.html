@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reports and DRSM | DataReel Reporting Agent for Linux Documentation</title>
+<meta name="description" content="The DataReel Reporting Agent for Linux report format and how the DataReel System Monitor checks agent hosts.">
+<link rel="icon" href="images/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="docs.css">
+<script src="docs.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="tool icon-only menu-btn" type="button" data-action="menu" aria-label="Menu" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <a class="brand" href="index.html"><img src="images/logo.svg" alt="">DataReel Reporting Agent for Linux <small>Documentation</small></a>
+    <span class="spacer"></span>
+    
+    <a class="tool hide-sm" href="https://datareel.com/downloads/linux_reporting_agent/"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Downloads</span></a>
+    <button class="tool icon-only" type="button" data-action="theme" aria-label="Switch light or dark theme"><svg class="icon sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="icon moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar" aria-label="Documentation">
+    <h4>Get started</h4><a href="index.html">Overview</a><a href="install.html">Install the agent</a><a href="server.html">Set up the report server</a><h4>Using the agent</h4><a href="approve.html">Approve hosts</a><a href="configuration.html">Configuration</a><a href="reports.html" class="active" aria-current="page">Reports and DRSM</a><div class="toc"><a href="#format">Report format</a><a href="#sections">Sections</a><a href="#drsm">DRSM</a><a href="#setup">Set up DRSM</a><a href="#plugins">The linux plugins</a></div><a href="vulnerabilities.html">Vulnerability scans</a><a href="hooks.html">Hooks</a><h4>Reference</h4><a href="security.html">Security</a><a href="building.html">Build from source</a><a href="troubleshooting.html">Troubleshooting</a><a href="changelog.html">What's new</a><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
+  </nav>
+  <main class="content" id="main">
+<h1>Reports and DRSM</h1>
+<p class="lead">Each report is a plain text file, one per host, that DRSM reads in place of an SSH check.</p>
+
+<h2 id="format">Report format</h2>
+<p>The server saves the report as <code>&lt;host&gt;_linux_report_agent.txt</code>. It starts with <code>KEY: value</code> headers (<code>VERSION</code>, <code>PLATFORM: linux</code>, <code>HOSTNAME</code>, <code>ETIME</code>, <code>DATETIME</code>), followed by sections of <code>name=value</code> lines. Values with spaces are quoted.</p>
+<pre><code>VERSION: 1.0-beta2
+PLATFORM: linux
+HOSTNAME: web1.example.com
+...
+PERFORMANCE:
+cpu_used_pct=7.4
+load_15m=0.31
+mem_available_mb=5120
+END PERFORMANCE</code></pre>
+<p><code>drra report</code> prints one without sending it.</p>
+
+<h2 id="sections">Sections</h2>
+<div class="table-wrap"><table><thead><tr><th>Section</th><th>Contents</th></tr></thead><tbody><tr><td>SYSTEM</td><td>Release, kernel, vendor, model, serial number, virtualization, time zone</td></tr><tr><td>IP ADDRESS</td><td>IPv4 and IPv6 addresses of the interfaces that are up</td></tr><tr><td>PERFORMANCE</td><td>CPU use (5 second sample), iowait, steal, load, memory, swap, processes, uptime</td></tr><tr><td>DISK USAGE</td><td>Size, use and inode use of every local file system</td></tr><tr><td>NETWORK</td><td>Traffic, errors and drops of each interface</td></tr><tr><td>USERS, ACCOUNTS</td><td>Logged in sessions, accounts with a login shell</td></tr><tr><td>SECURITY</td><td>SELinux, firewalld or nftables, auditd, FIPS, sshd root and password login, automatic updates</td></tr><tr><td>FAILED SERVICES</td><td>Failed systemd units</td></tr><tr><td>UPDATES</td><td>Pending package updates, last package install, restart needed for a new kernel</td></tr><tr><td>VULNERABILITIES</td><td>Security advisories that apply, with severity, CVEs and fixed packages</td></tr><tr><td>COMPLIANCE</td><td>SCAP Security Guide profile score and failed rules (optional)</td></tr><tr><td>HOOKS</td><td>Output of the report hooks</td></tr><tr><td>UPLOADS</td><td>State of the hook uploads</td></tr><tr><td>INSTALLED PACKAGES</td><td>Every package with version and install time</td></tr></tbody></table></div>
+<p>With scans on, the OpenSCAP HTML reports are saved next to it as <code>&lt;host&gt;_linux_scap_report.html</code> and <code>&lt;host&gt;_linux_compliance_report.html</code>.</p>
+
+<h2 id="drsm">DRSM</h2>
+<p>The <a href="https://datareel.com/info_drsm.php">DataReel System Monitor</a> checks hosts with <code>COLLECTOR=lra</code> from their last report: DRSM never connects to them. They show on the dashboard next to the SSH monitored hosts, with the same alerts and trend graphs, and their advisories show on the Vulnerabilities page. DRSM releases after 1.33 include the Linux agent plugins; for DRSM 1.33 and earlier, <code>drsm/install.sh</code> in the agent source code copies them in (dry run, then <code>--apply</code>).</p>
+
+<h2 id="setup">Set up DRSM</h2>
+<ol>
+  <li>Set <code>LRA_REPORTS_DIR</code> (the server's <code>reports_dir</code>) in DRSM's <code>etc/hosts/_defaults.conf</code>. If DRSM runs on another machine, sync the reports to it.</li>
+  <li>Make a host file for every agent report: <code>utils/lra_hosts.sh</code> (dry run, then <code>--apply</code>).</li>
+  <li>For the OpenSCAP HTML links on the Vulnerabilities page, set <code>$LRAreportsDir</code> in the dashboard's <code>config/drsm.php</code> where the uploads land.</li>
+</ol>
+
+<h2 id="plugins">The linux plugins</h2>
+<div class="table-wrap"><table><thead><tr><th>Plugin</th><th>Checks</th></tr></thead><tbody><tr><td><code>linux/checkin</code></td><td>Report age, agent version, host facts</td></tr><tr><td><code>linux/resources</code></td><td>CPU, load, memory, swap, disks, inodes, network, with the same metrics as the SSH plugins so trends work</td></tr><tr><td><code>linux/updates</code></td><td>Pending updates, days since the last update, restart needed</td></tr><tr><td><code>linux/security</code></td><td>SELinux, firewall, auditd, sshd, failed units</td></tr><tr><td><code>linux/vulnerabilities</code></td><td>An error for critical advisories, a warning for important ones, critical CVEs with no fix yet, an old or failed scan, a low compliance score</td></tr><tr><td><code>linux/hooks</code></td><td>Every report hook; a plugin with <code>LRA_HOOK=&lt;name&gt;</code> shows one hook as its own check</td></tr></tbody></table></div>
+<p>Each plugin's settings can be changed per host in its host file, for example <code>linux_vulnerabilities_WARN_SEVERITY=Critical</code>.</p>
+<nav class="pager" aria-label="Previous and next page"><a class="card prev" href="configuration.html"><small>Previous</small>Configuration</a><a class="card next" href="vulnerabilities.html"><small>Next</small>Vulnerability scans</a></nav>
+  </main>
+</div>
+<footer class="foot">DataReel Reporting Agent for Linux 1.0 beta 2 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+</body>
+</html>

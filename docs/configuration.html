@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuration | DataReel Reporting Agent for Linux Documentation</title>
+<meta name="description" content="Every DataReel Reporting Agent for Linux setting in /etc/drra/drra.ini: delivery, HTTPS, CIFS, SCP, agent, scan, hooks and uploads.">
+<link rel="icon" href="images/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="docs.css">
+<script src="docs.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="tool icon-only menu-btn" type="button" data-action="menu" aria-label="Menu" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <a class="brand" href="index.html"><img src="images/logo.svg" alt="">DataReel Reporting Agent for Linux <small>Documentation</small></a>
+    <span class="spacer"></span>
+    
+    <a class="tool hide-sm" href="https://datareel.com/downloads/linux_reporting_agent/"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Downloads</span></a>
+    <button class="tool icon-only" type="button" data-action="theme" aria-label="Switch light or dark theme"><svg class="icon sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="icon moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar" aria-label="Documentation">
+    <h4>Get started</h4><a href="index.html">Overview</a><a href="install.html">Install the agent</a><a href="server.html">Set up the report server</a><h4>Using the agent</h4><a href="approve.html">Approve hosts</a><a href="configuration.html" class="active" aria-current="page">Configuration</a><div class="toc"><a href="#file">The settings file</a><a href="#delivery">[delivery]</a><a href="#https">[https]</a><a href="#cifs">[cifs]</a><a href="#scp">[scp]</a><a href="#agent">[agent]</a><a href="#scan">[scan]</a><a href="#hooks">[hooks] and [uploads]</a></div><a href="reports.html">Reports and DRSM</a><a href="vulnerabilities.html">Vulnerability scans</a><a href="hooks.html">Hooks</a><h4>Reference</h4><a href="security.html">Security</a><a href="building.html">Build from source</a><a href="troubleshooting.html">Troubleshooting</a><a href="changelog.html">What's new</a><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
+  </nav>
+  <main class="content" id="main">
+<h1>Configuration</h1>
+<p class="lead">Every setting is in <code>/etc/drra/drra.ini</code>. The agent reads it again before every report, so changes need no restart; <code>systemctl reload drra</code> starts the next report now.</p>
+
+<h2 id="file">The settings file</h2>
+<p>A setting left out uses its default. <code>drra config</code> prints the settings in use. The file is root only (mode 0600) because it can hold the enrollment token.</p>
+
+<h2 id="delivery">[delivery]</h2>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Default</th><th>What it does</th></tr></thead><tbody><tr><td><code>methods</code></td><td>https</td><td>One or more of <code>https</code>, <code>cifs</code>, <code>scp</code>, separated by commas. Every listed method runs each cycle.</td></tr></tbody></table></div>
+
+<h2 id="https">[https]</h2>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Default</th><th>What it does</th></tr></thead><tbody><tr><td><code>host</code></td><td>reports.example.com</td><td>Report server</td></tr><tr><td><code>port</code></td><td>443</td><td>443 for HTTPS, 80 for HTTP</td></tr><tr><td><code>upload_path</code></td><td>/linux/upload/upload.php</td><td>Upload page</td></tr><tr><td><code>register_path</code></td><td>/linux/upload/register.php</td><td>Registration page</td></tr><tr><td><code>hook_path</code></td><td>empty</td><td>Hook upload page; empty uses <code>hook.php</code> next to <code>upload_path</code></td></tr><tr><td><code>enrollment_token</code></td><td>empty</td><td>The <code>enrollment_token</code> from <code>server.ini</code>; empty to have an admin approve the host</td></tr><tr><td><code>use_https</code></td><td>1</td><td>0 = plain HTTP, only for a test server</td></tr><tr><td><code>verify_peer</code></td><td>1</td><td>Check the server certificate and host name. 0 only for a test server; use <code>ca_file</code> for a private CA.</td></tr><tr><td><code>ca_file</code></td><td>empty</td><td>CA bundle (PEM) for a private CA; empty uses the system trust store</td></tr><tr><td><code>timeout_seconds</code></td><td>60</td><td>Seconds before an upload is given up</td></tr></tbody></table></div>
+
+<h2 id="cifs">[cifs]</h2>
+<p>Copies the report to a Windows (SMB/CIFS) file share with <code>smbclient</code> (package <code>samba-client</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Default</th><th>What it does</th></tr></thead><tbody><tr><td><code>share</code></td><td>empty</td><td>Share, for example <code>//fileserver/reports</code></td></tr><tr><td><code>directory</code></td><td>empty</td><td>Folder inside the share</td></tr><tr><td><code>credentials_file</code></td><td>/etc/drra/cifs_credentials</td><td>Share login in <code>smbclient -A</code> format (<code>username =</code>, <code>password =</code>, <code>domain =</code>), mode 0600; empty for a guest share</td></tr><tr><td><code>smbclient_path</code></td><td>/usr/bin/smbclient</td><td></td></tr><tr><td><code>timeout_seconds</code></td><td>120</td><td></td></tr></tbody></table></div>
+
+<h2 id="scp">[scp]</h2>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Default</th><th>What it does</th></tr></thead><tbody><tr><td><code>host, port, user</code></td><td>empty, 22, empty</td><td>SSH server and account that receive the report</td></tr><tr><td><code>key_file</code></td><td>/etc/drra/id_ed25519</td><td>Private key with no passphrase, mode 0600</td></tr><tr><td><code>remote_dir</code></td><td>empty</td><td>Folder on the server, for example the report server's <code>reports_dir</code></td></tr><tr><td><code>known_hosts_file</code></td><td>/var/lib/drra/known_hosts</td><td>Host key of the server</td></tr><tr><td><code>strict_host_key_checking</code></td><td>yes</td><td><code>yes</code> (only a key already in known_hosts) or <code>accept-new</code> (save it on the first connection)</td></tr><tr><td><code>scp_path</code></td><td>/usr/bin/scp</td><td></td></tr><tr><td><code>timeout_seconds</code></td><td>120</td><td>Seconds before a hung transfer is stopped</td></tr></tbody></table></div>
+
+<h2 id="agent">[agent]</h2>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Default</th><th>What it does</th></tr></thead><tbody><tr><td><code>report_interval_minutes</code></td><td>15</td><td>Minutes between reports. 15 matches the DRSM check interval.</td></tr><tr><td><code>cpu_sample_seconds</code></td><td>5</td><td>Seconds the CPU use is sampled for</td></tr><tr><td><code>report_dir</code></td><td>/var/lib/drra</td><td>Where the report is written before it is sent</td></tr><tr><td><code>log_file</code></td><td>/var/log/drra/drra.log</td><td>Log of every report and upload</td></tr><tr><td><code>data_dir</code></td><td>/var/lib/drra</td><td>Agent key, certificate, registration and scan results</td></tr><tr><td><code>check_updates</code></td><td>1</td><td>List pending package updates (from the dnf metadata cache)</td></tr><tr><td><code>updates_refresh_hours</code></td><td>24</td><td>Hours between <code>dnf makecache</code> runs; 0 leaves it to <code>dnf-makecache.timer</code></td></tr><tr><td><code>command_timeout_seconds</code></td><td>300</td><td>Seconds before a command the agent runs (rpm, dnf, systemctl) is stopped</td></tr></tbody></table></div>
+
+<h2 id="scan">[scan]</h2>
+<p>See <a href="vulnerabilities.html">Vulnerability scans</a> for how the sources work.</p>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Default</th><th>What it does</th></tr></thead><tbody><tr><td><code>enabled</code></td><td>0</td><td>1 turns the vulnerability scan on</td></tr><tr><td><code>interval_hours</code></td><td>24</td><td>Hours between scans</td></tr><tr><td><code>source</code></td><td>auto</td><td><code>auto</code>, <code>oval</code>, <code>csaf</code> or <code>dnf</code></td></tr><tr><td><code>oval_feed_url</code></td><td>empty</td><td>OVAL feed (https URL or local file, .xml or .xml.bz2); empty picks Red Hat's feed for the release</td></tr><tr><td><code>csaf_index_url</code></td><td>empty</td><td>CSAF/VEX index (https URL or local file, <code>{major}</code> is replaced with the release); empty uses <code>vex_index.php</code> next to <code>upload_path</code></td></tr><tr><td><code>unfixed_list_severity</code></td><td>Important</td><td>CVEs with no fix yet are counted, and listed at or above this severity (Critical, Important, Moderate, Low or none)</td></tr><tr><td><code>oscap_path</code></td><td>/usr/bin/oscap</td><td></td></tr><tr><td><code>upload_html</code></td><td>1</td><td>Send the OpenSCAP HTML reports to the server</td></tr><tr><td><code>compliance_profile</code></td><td>empty</td><td>SCAP Security Guide profile for a compliance scan, for example <code>cis_server_l1</code> or <code>stig</code>; empty = none</td></tr><tr><td><code>compliance_datastream</code></td><td>empty</td><td>SCAP data stream; empty picks <code>ssg-rhel&lt;release&gt;-ds.xml</code></td></tr><tr><td><code>timeout_minutes</code></td><td>60</td><td>Minutes before a scan is stopped</td></tr></tbody></table></div>
+
+<h2 id="hooks">[hooks] and [uploads]</h2>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Default</th><th>What it does</th></tr></thead><tbody><tr><td><code>[hooks] enabled</code></td><td>1</td><td>Run the report hooks</td></tr><tr><td><code>[hooks] dir</code></td><td>/etc/drra/report.d</td><td>Folder of hook programs</td></tr><tr><td><code>[hooks] timeout_seconds</code></td><td>60</td><td>Seconds before a hook is stopped</td></tr><tr><td><code>[hooks] max_output_kb</code></td><td>256</td><td>Output kept from each hook</td></tr><tr><td><code>[hooks] user</code></td><td>empty</td><td>Run the hooks as this user instead of root (then set <code>dir</code> to a folder that user can reach)</td></tr><tr><td><code>[uploads] enabled</code></td><td>1</td><td>Send hook uploads</td></tr><tr><td><code>[uploads] dir</code></td><td>/etc/drra/uploads.d</td><td>Upload hook files (<code>&lt;id&gt;.ini</code>)</td></tr><tr><td><code>[uploads] spool_dir</code></td><td>/var/spool/drra/uploads</td><td>Files waiting to be sent, one folder per hook</td></tr><tr><td><code>[uploads] max_bytes</code></td><td>20000000</td><td>Largest file an upload hook may send</td></tr></tbody></table></div>
+<p>See <a href="hooks.html">Hooks</a>.</p>
+<nav class="pager" aria-label="Previous and next page"><a class="card prev" href="approve.html"><small>Previous</small>Approve hosts</a><a class="card next" href="reports.html"><small>Next</small>Reports and DRSM</a></nav>
+  </main>
+</div>
+<footer class="foot">DataReel Reporting Agent for Linux 1.0 beta 2 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+</body>
+</html>

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vulnerability scans | DataReel Reporting Agent for Linux Documentation</title>
+<meta name="description" content="DataReel Reporting Agent for Linux vulnerability scans: OpenSCAP OVAL on RHEL 8 and 9, Red Hat CSAF/VEX on RHEL 10, dnf updateinfo, and SCAP compliance scans.">
+<link rel="icon" href="images/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="docs.css">
+<script src="docs.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="tool icon-only menu-btn" type="button" data-action="menu" aria-label="Menu" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <a class="brand" href="index.html"><img src="images/logo.svg" alt="">DataReel Reporting Agent for Linux <small>Documentation</small></a>
+    <span class="spacer"></span>
+    
+    <a class="tool hide-sm" href="https://datareel.com/downloads/linux_reporting_agent/"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Downloads</span></a>
+    <button class="tool icon-only" type="button" data-action="theme" aria-label="Switch light or dark theme"><svg class="icon sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="icon moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar" aria-label="Documentation">
+    <h4>Get started</h4><a href="index.html">Overview</a><a href="install.html">Install the agent</a><a href="server.html">Set up the report server</a><h4>Using the agent</h4><a href="approve.html">Approve hosts</a><a href="configuration.html">Configuration</a><a href="reports.html">Reports and DRSM</a><a href="vulnerabilities.html" class="active" aria-current="page">Vulnerability scans</a><div class="toc"><a href="#on">Turn scans on</a><a href="#sources">Sources</a><a href="#oval">RHEL 8 and 9: OpenSCAP</a><a href="#csaf">RHEL 10: CSAF/VEX</a><a href="#unfixed">CVEs with no fix</a><a href="#compliance">Compliance scans</a><a href="#offline">Hosts with no internet</a><a href="#page">The Vulnerabilities page</a></div><a href="hooks.html">Hooks</a><h4>Reference</h4><a href="security.html">Security</a><a href="building.html">Build from source</a><a href="troubleshooting.html">Troubleshooting</a><a href="changelog.html">What's new</a><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
+  </nav>
+  <main class="content" id="main">
+<h1>Vulnerability scans</h1>
+<p class="lead">Once a day the agent lists the Red Hat security advisories (RHSA) the installed packages still need, with their severity, CVEs and fixed packages.</p>
+
+<h2 id="on">Turn scans on</h2>
+<p>The scans are off by default. Turn them on in <code>/etc/drra/drra.ini</code>:</p>
+<pre><code><span class="c">[scan]</span>
+enabled=1</code></pre><pre><code><span class="r"># </span>systemctl reload drra
+<span class="r"># </span>drra scan                 # or run one now</code></pre>
+<p>An OpenSCAP scan can use about 800 MB of memory for a few minutes: keep that in mind on small cloud servers, or use <code>source=dnf</code> there.</p>
+
+<h2 id="sources">Sources</h2>
+<div class="table-wrap"><table><thead><tr><th>source</th><th>Used for</th><th>How</th></tr></thead><tbody><tr><td><code>auto</code> (default)</td><td>Every host</td><td>OpenSCAP on RHEL 8 and 9; the CSAF/VEX index on RHEL 10 when the agent sends to a report server over https; dnf updateinfo otherwise</td></tr><tr><td><code>oval</code></td><td>Any release</td><td>Always OpenSCAP: <code>oscap oval eval</code> against <code>oval_feed_url</code></td></tr><tr><td><code>csaf</code></td><td>RHEL 10 (8 and 9 too)</td><td>The report server's CSAF/VEX index, plus dnf errata newer than the VEX files</td></tr><tr><td><code>dnf</code></td><td>Any release</td><td><code>dnf updateinfo</code>: the repositories' security errata, plus EPEL</td></tr></tbody></table></div>
+
+<h2 id="oval">RHEL 8 and 9: OpenSCAP</h2>
+<p>The agent runs <code>oscap oval eval</code> (package <code>openscap-scanner</code>) against Red Hat's OVAL feed for the release, for example <code>security.access.redhat.com/data/oval/v2/RHEL9/rhel-9.oval.xml.bz2</code>. The feed is downloaded only when it changes. The OpenSCAP HTML report goes to the server with the next report, and DRSM links it from the Vulnerabilities page.</p>
+
+<h2 id="csaf">RHEL 10: CSAF/VEX</h2>
+<p>Red Hat publishes no OVAL feed for RHEL 10, only CSAF/VEX files: one JSON file per CVE, about 400 MB in all. Rather than every host downloading them, <code>vex_sync.php</code> on the report server builds a small index (about 2 MB) of the RHEL 10 packages each CVE is fixed in, and of the packages Red Hat lists as affected with no fix yet (see <a href="server.html#vex">Set up the report server</a>). Agents download the index from <code>vex_index.php</code> when it changes and compare it with their packages using rpm's version rules. Red Hat's VEX files can lag the errata by a day or more, so the agent adds the dnf errata that are newer.</p>
+
+<h2 id="unfixed">CVEs with no fix</h2>
+<p>CSAF/VEX scans also count the CVEs that affect an installed package and have no update yet, which <code>dnf updateinfo</code> cannot do. RHEL lists thousands of moderate and low CVEs (most of them kernel) as affected while they are reviewed, so the agent counts them all by severity and lists only those at or above <code>unfixed_list_severity</code> (Important). DRSM warns about unfixed CVEs at or above <code>UNFIXED_WARN_SEVERITY</code> (Critical).</p>
+
+<h2 id="compliance">Compliance scans</h2>
+<p>Set <code>compliance_profile</code> to run a SCAP Security Guide profile (package <code>scap-security-guide</code>) with each scan, for example <code>cis_server_l1</code>, <code>stig</code> or <code>pci-dss</code>. The report gets the score and the failed rules, and the HTML report goes to the server. List the profiles with:</p>
+<pre><code><span class="p">$ </span>oscap info /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml</code></pre>
+<p>A compliance scan can also be run by hand and sent as a <a href="hooks.html#uploads">hook upload</a>, so a host does not run it every day.</p>
+
+<h2 id="offline">Hosts with no internet</h2>
+<p><code>source=oval</code> with <code>oval_feed_url</code> set to a local file uses a feed you copy to the host. <code>csaf_index_url</code> can point at a local copy of the CSAF/VEX index too.</p>
+
+<h2 id="page">The Vulnerabilities page</h2>
+<p>DRSM's Vulnerabilities page shows every host's advisory counts by severity, the advisories that affect the most hosts, and per host its advisories, fixed packages, CVEs, unfixed CVEs and compliance results. The <code>linux/vulnerabilities</code> plugin raises an error for a critical advisory and a warning for an important one, an unfixed critical CVE, a scan older than 3 days, a failed scan or a low compliance score.</p>
+<nav class="pager" aria-label="Previous and next page"><a class="card prev" href="reports.html"><small>Previous</small>Reports and DRSM</a><a class="card next" href="hooks.html"><small>Next</small>Hooks</a></nav>
+  </main>
+</div>
+<footer class="foot">DataReel Reporting Agent for Linux 1.0 beta 2 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set up the report server | DataReel Reporting Agent for Linux Documentation</title>
+<meta name="description" content="Install the DataReel Reporting Agent for Linux PHP report server pages: register, upload, hook uploads, admin page and the RHEL 10 CSAF/VEX index.">
+<link rel="icon" href="images/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="docs.css">
+<script src="docs.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="tool icon-only menu-btn" type="button" data-action="menu" aria-label="Menu" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <a class="brand" href="index.html"><img src="images/logo.svg" alt="">DataReel Reporting Agent for Linux <small>Documentation</small></a>
+    <span class="spacer"></span>
+    
+    <a class="tool hide-sm" href="https://datareel.com/downloads/linux_reporting_agent/"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Downloads</span></a>
+    <button class="tool icon-only" type="button" data-action="theme" aria-label="Switch light or dark theme"><svg class="icon sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="icon moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar" aria-label="Documentation">
+    <h4>Get started</h4><a href="index.html">Overview</a><a href="install.html">Install the agent</a><a href="server.html" class="active" aria-current="page">Set up the report server</a><div class="toc"><a href="#needs">What you need</a><a href="#pages">The pages</a><a href="#install">Install</a><a href="#settings">server.ini</a><a href="#login">Admin login</a><a href="#vex">RHEL 10 CSAF/VEX index</a><a href="#shared">Shared hosting</a><a href="#windows">With the Windows agent</a></div><h4>Using the agent</h4><a href="approve.html">Approve hosts</a><a href="configuration.html">Configuration</a><a href="reports.html">Reports and DRSM</a><a href="vulnerabilities.html">Vulnerability scans</a><a href="hooks.html">Hooks</a><h4>Reference</h4><a href="security.html">Security</a><a href="building.html">Build from source</a><a href="troubleshooting.html">Troubleshooting</a><a href="changelog.html">What's new</a><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
+  </nav>
+  <main class="content" id="main">
+<h1>Set up the report server</h1>
+<p class="lead">The report server is a few PHP pages on any Apache and PHP host. It checks each upload's signature and keeps one report per host for DRSM to read.</p>
+
+<h2 id="needs">What you need</h2>
+<ul>
+  <li>Apache with PHP 7.4 or later and the openssl extension. Shared hosting works.</li>
+  <li>An HTTPS certificate the hosts trust (or a private CA, set with <code>ca_file</code> on the agents).</li>
+  <li>A data folder the web server can write to, best outside the web root.</li>
+  <li>For the RHEL 10 CSAF/VEX index: PHP on the command line, cron, <code>zstd</code> and outgoing HTTPS to security.access.redhat.com.</li>
+</ul>
+
+<h2 id="pages">The pages</h2>
+<div class="table-wrap"><table><thead><tr><th>Page</th><th>What it does</th></tr></thead><tbody><tr><td><code>register.php</code></td><td>Registers an agent's certificate. With the enrollment token the agent is approved at once, otherwise it waits for an admin.</td></tr><tr><td><code>upload.php</code></td><td>Takes a report only when it is signed with the key of an approved agent, and saves it as <code>&lt;host&gt;_linux_report_agent.txt</code>, with the OpenSCAP HTML reports, in <code>reports_dir</code></td></tr><tr><td><code>hook.php</code></td><td>Takes hook uploads, signed the same way, for hook IDs with a manifest, and keeps them in <code>[hooks] dir</code></td></tr><tr><td><code>admin.php</code></td><td>Approves, revokes and deletes agents, behind a login</td></tr><tr><td><code>vex_index.php</code></td><td>Serves the RHEL 10 CSAF/VEX index to the agents</td></tr><tr><td><code>vex_sync.php</code></td><td>Builds the CSAF/VEX index (cron, not a web page)</td></tr><tr><td><code>lra_lib.php</code>, <code>lra_auth.php</code>, <code>hook_lib.php</code></td><td>Shared code, blocked from the web</td></tr></tbody></table></div>
+
+<h2 id="install">Install</h2>
+<p>The pages and <code>install_server.sh</code> are in the source code and in <code>/usr/share/doc/linux_reporting_agent/php</code> on any host with the RPM. The script shows what it would do first; run it again with <code>--apply</code>:</p>
+<pre><code><span class="p">$ </span>php/install_server.sh /var/www/html/linux /var/lib/linux_reporting_agent
+<span class="p">$ </span>sudo php/install_server.sh --apply --admin-user admin /var/www/html/linux /var/lib/linux_reporting_agent</code></pre>
+<p>It puts the pages in <code>/var/www/html/linux/upload/</code>, writes <code>server.ini</code> in the data folder (never over an existing one), adds the <code>.htaccess</code> files, and with <code>--admin-user</code> makes an <code>admin.htpasswd</code> login. At the end it prints the commands that let the web server user write to the data folder, including the SELinux label <code>httpd_sys_rw_content_t</code>. Point Apache at <code>server.ini</code> with <code>SetEnv LRA_SERVER_INI /var/lib/linux_reporting_agent/server.ini</code> if it is not in <code>/etc/linux_reporting_agent/</code>.</p>
+
+<h2 id="settings">server.ini</h2>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Default</th><th>What it does</th></tr></thead><tbody><tr><td><code>[paths] reports_dir</code></td><td><code>/var/www/html/linux/reports</code></td><td>Where reports are written, one file per host. DRSM reads it (<code>LRA_REPORTS_DIR</code>).</td></tr><tr><td><code>[paths] data_dir</code></td><td><code>/var/lib/linux_reporting_agent</code></td><td>Agent registrations and replay protection data</td></tr><tr><td><code>[registration] enrollment_token</code></td><td>empty</td><td>Shared secret agents send when they register. Empty: an admin approves every agent.</td></tr><tr><td><code>[registration] auto_approve_with_token</code></td><td>1</td><td>0 still checks the token, but an admin must approve</td></tr><tr><td><code>[upload] max_upload_bytes</code></td><td>2000000</td><td>Largest report</td></tr><tr><td><code>[upload] max_html_bytes</code></td><td>20000000</td><td>Largest OpenSCAP HTML report</td></tr><tr><td><code>[upload] max_clock_skew_seconds</code></td><td>300</td><td>Largest clock difference between agent and server</td></tr><tr><td><code>[admin] require_remote_user</code></td><td>1</td><td><code>admin.php</code> only runs behind web server authentication</td></tr><tr><td><code>[admin] login</code></td><td>basic</td><td><code>basic</code> (web server login) or <code>drsm</code> (DRSM dashboard login)</td></tr><tr><td><code>[admin] drsm_config</code></td><td>empty</td><td>With <code>login = drsm</code>: the dashboard's <code>config/drsm.php</code></td></tr><tr><td><code>[hooks] enabled</code></td><td>1</td><td>Take hook uploads</td></tr><tr><td><code>[hooks] manifest_dir</code></td><td>empty</td><td>DRSM's <code>plugins/uploads</code> folder; only hook IDs with a manifest are taken</td></tr><tr><td><code>[hooks] dir</code></td><td><code>&lt;data_dir&gt;/hooks</code></td><td>Where hook payloads are kept; DRSM reads it (<code>UPLOADS_DIR</code>)</td></tr><tr><td><code>[hooks] max_bytes</code></td><td>20000000</td><td>Largest hook payload</td></tr></tbody></table></div>
+
+<h2 id="login">Admin login</h2>
+<p>By default <code>admin.php</code> sits behind an Apache Basic login (<code>admin.htpasswd</code>). When the pages are inside the DRSM dashboard's web folder, for example <code>/dashboard/linux/upload/</code>, they can use the dashboard login instead:</p>
+<pre><code><span class="p">$ </span>sudo php/install_server.sh --apply --drsm-login ../../config/drsm.php /var/www/html/dashboard/linux /var/www/html/dashboard/linux/data</code></pre>
+
+<h2 id="vex">RHEL 10 CSAF/VEX index</h2>
+<p>Red Hat publishes no OVAL feed for RHEL 10. <code>vex_sync.php</code> builds a small index (about 2 MB) from Red Hat's CSAF/VEX files, and agents fetch it from <code>vex_index.php</code> when it changes. The first run downloads Red Hat's full VEX archive (about 400 MB, needs <code>zstd</code>) and takes a while; later runs fetch only the files that changed, in seconds. Run it daily from cron as a user that can write the data folder:</p>
+<pre><code><span class="c"># /etc/cron.d/lra_vex_sync</span>
+30 5 * * * apache LRA_SERVER_INI=/var/lib/linux_reporting_agent/server.ini php /var/www/html/linux/upload/vex_sync.php --releases 10</code></pre>
+<p>Only needed when RHEL 10 hosts scan for vulnerabilities. See <a href="vulnerabilities.html">Vulnerability scans</a>.</p>
+
+<h2 id="shared">Shared hosting</h2>
+<p>On hosts with only Apache and PHP, such as HostGator, put the data folder inside the web folder: <code>install_server.sh</code> adds a <code>Require all denied</code> <code>.htaccess</code> to it. Copy <code>server.ini</code> next to it and set <code>SetEnv LRA_SERVER_INI</code> in the pages' <code>.htaccess</code>. Build the CSAF/VEX index on another machine if the host has no cron with PHP, and copy it into <code>data/vex/</code>.</p>
+
+<h2 id="windows">With the Windows agent</h2>
+<p>The <a href="https://datareel.com/info_windows_reporting_agent.php">Windows agent</a> uses the same protocol with its own pages. Install each in its own folder, for example <code>/dashboard/windows/upload/</code> and <code>/dashboard/linux/upload/</code>, so the Linux and Windows registrations stay apart.</p>
+<nav class="pager" aria-label="Previous and next page"><a class="card prev" href="install.html"><small>Previous</small>Install the agent</a><a class="card next" href="approve.html"><small>Next</small>Approve hosts</a></nav>
+  </main>
+</div>
+<footer class="foot">DataReel Reporting Agent for Linux 1.0 beta 2 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Build from source | DataReel Reporting Agent for Linux Documentation</title>
+<meta name="description" content="Build the DataReel Reporting Agent for Linux with make, and its RPMs for RHEL 8, 9 and 10 with podman.">
+<link rel="icon" href="images/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="docs.css">
+<script src="docs.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="tool icon-only menu-btn" type="button" data-action="menu" aria-label="Menu" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <a class="brand" href="index.html"><img src="images/logo.svg" alt="">DataReel Reporting Agent for Linux <small>Documentation</small></a>
+    <span class="spacer"></span>
+    
+    <a class="tool hide-sm" href="https://datareel.com/downloads/linux_reporting_agent/"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Downloads</span></a>
+    <button class="tool icon-only" type="button" data-action="theme" aria-label="Switch light or dark theme"><svg class="icon sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="icon moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar" aria-label="Documentation">
+    <h4>Get started</h4><a href="index.html">Overview</a><a href="install.html">Install the agent</a><a href="server.html">Set up the report server</a><h4>Using the agent</h4><a href="approve.html">Approve hosts</a><a href="configuration.html">Configuration</a><a href="reports.html">Reports and DRSM</a><a href="vulnerabilities.html">Vulnerability scans</a><a href="hooks.html">Hooks</a><h4>Reference</h4><a href="security.html">Security</a><a href="building.html" class="active" aria-current="page">Build from source</a><div class="toc"><a href="#needs">What you need</a><a href="#make">Build with make</a><a href="#rpms">Build the RPMs</a><a href="#tests">Tests</a><a href="#files">Source files</a></div><a href="troubleshooting.html">Troubleshooting</a><a href="changelog.html">What's new</a><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
+  </nav>
+  <main class="content" id="main">
+<h1>Build from source</h1>
+<p class="lead">The agent is plain C++17 with OpenSSL, libcurl, libxml2, bzip2 and zlib from the distribution, so it builds the same on RHEL 8, 9 and 10.</p>
+
+<h2 id="needs">What you need</h2>
+<pre><code><span class="r"># </span>dnf install gcc-c++ make openssl-devel libcurl-devel libxml2-devel bzip2-devel zlib-devel</code></pre>
+
+<h2 id="make">Build with make</h2>
+<pre><code><span class="p">$ </span>wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.0-beta2.tar.gz
+<span class="p">$ </span>tar xzf linux_reporting_agent-1.0-beta2.tar.gz &amp;&amp; cd linux_reporting_agent-1.0-beta2
+<span class="p">$ </span>make
+<span class="r"># </span>make install            # /usr/sbin/drra, /etc/drra, the systemd unit
+<span class="r"># </span>systemctl daemon-reload</code></pre>
+<p><code>make install</code> takes <code>DESTDIR</code>, <code>PREFIX</code>, <code>SYSCONFDIR</code> and <code>UNITDIR</code>. It overwrites <code>/etc/drra/drra.ini</code>: keep a copy of yours.</p>
+
+<h2 id="rpms">Build the RPMs</h2>
+<pre><code><span class="p">$ </span>tools/build_rpms.sh</code></pre>
+<p>Builds the source tarball and the RHEL 8, 9 and 10 RPMs in UBI containers with podman, into <code>output/</code>, with a <code>.sha256sum</code> file. The spec file is <code>rpm/linux_reporting_agent.spec</code>.</p>
+
+<h2 id="tests">Tests</h2>
+<pre><code><span class="p">$ </span>tests/drsm_test.sh           # DRSM plugins and pages against a DRSM checkout
+<span class="p">$ </span>tests/uploads_test.sh        # hook uploads end to end with php -S</code></pre>
+
+<h2 id="files">Source files</h2>
+<div class="table-wrap"><table><thead><tr><th>File</th><th>Contents</th></tr></thead><tbody><tr><td><code>src/drra.cpp</code></td><td>Commands and the service loop</td></tr><tr><td><code>src/common.cpp</code>, <code>common.h</code></td><td>Settings, logging, helpers, version</td></tr><tr><td><code>src/collect.cpp</code></td><td>The report sections</td></tr><tr><td><code>src/scan.cpp</code></td><td>OpenSCAP, CSAF/VEX and dnf vulnerability scans, compliance scans</td></tr><tr><td><code>src/agent_auth.cpp</code></td><td>Key, certificate, signing, registration and uploads (OpenSSL, libcurl)</td></tr><tr><td><code>src/deliver.cpp</code></td><td>HTTPS, CIFS and SCP delivery</td></tr><tr><td><code>src/hooks.cpp</code>, <code>uploads.cpp</code></td><td>Report hooks and hook uploads</td></tr><tr><td><code>src/compat.h</code></td><td>RHEL 8 OpenSSL 1.1 and curl 7.61 support</td></tr><tr><td><code>drra.ini</code>, <code>systemd/</code>, <code>rpm/</code></td><td>Default settings, systemd unit and logrotate file, RPM spec</td></tr><tr><td><code>php/</code></td><td>Report server pages, <code>install_server.sh</code>, <code>server.ini.example</code></td></tr><tr><td><code>drsm/</code></td><td>DRSM collector, linux plugins and Vulnerabilities page, with <code>install.sh</code></td></tr><tr><td><code>tools/</code></td><td><code>build_rpms.sh</code>, <code>gen_docs.py</code> for these pages</td></tr></tbody></table></div>
+<nav class="pager" aria-label="Previous and next page"><a class="card prev" href="security.html"><small>Previous</small>Security</a><a class="card next" href="troubleshooting.html"><small>Next</small>Troubleshooting</a></nav>
+  </main>
+</div>
+<footer class="foot">DataReel Reporting Agent for Linux 1.0 beta 2 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+</body>
+</html>

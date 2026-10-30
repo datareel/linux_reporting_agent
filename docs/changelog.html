@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What's new | DataReel Reporting Agent for Linux Documentation</title>
+<meta name="description" content="DataReel Reporting Agent for Linux release history.">
+<link rel="icon" href="images/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="docs.css">
+<script src="docs.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="tool icon-only menu-btn" type="button" data-action="menu" aria-label="Menu" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <a class="brand" href="index.html"><img src="images/logo.svg" alt="">DataReel Reporting Agent for Linux <small>Documentation</small></a>
+    <span class="spacer"></span>
+    
+    <a class="tool hide-sm" href="https://datareel.com/downloads/linux_reporting_agent/"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Downloads</span></a>
+    <button class="tool icon-only" type="button" data-action="theme" aria-label="Switch light or dark theme"><svg class="icon sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="icon moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar" aria-label="Documentation">
+    <h4>Get started</h4><a href="index.html">Overview</a><a href="install.html">Install the agent</a><a href="server.html">Set up the report server</a><h4>Using the agent</h4><a href="approve.html">Approve hosts</a><a href="configuration.html">Configuration</a><a href="reports.html">Reports and DRSM</a><a href="vulnerabilities.html">Vulnerability scans</a><a href="hooks.html">Hooks</a><h4>Reference</h4><a href="security.html">Security</a><a href="building.html">Build from source</a><a href="troubleshooting.html">Troubleshooting</a><a href="changelog.html" class="active" aria-current="page">What's new</a><div class="toc"><a href="#v10b2">Release 1.0 beta 2</a><a href="#v10b1">Release 1.0 beta 1</a></div><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
+  </nav>
+  <main class="content" id="main">
+<h1>What's new</h1>
+<p class="lead">Release 1.0 beta 2 (1.0-beta2) adds report hooks and hook uploads. Release 1.0 beta 1 was the first release of the DataReel Reporting Agent for Linux. Both are betas: test them on a few hosts before a wide rollout.</p>
+
+<h2 id="v10b2">Release 1.0 beta 2 <span class="badge new">October 2026</span></h2>
+<ul>
+  <li><strong>Report hooks:</strong> site checks in <code>/etc/drra/report.d</code> run with every report, in a HOOKS section DRSM shows as checks (<code>LRA_HOOK=</code>, <code>linux/hooks</code>). <code>drra hooks</code> runs them now. See <a href="hooks.html">Hooks</a>.</li>
+  <li><strong>Hook uploads:</strong> send reports from other sources, such as a scan run by hand or a backup job's result, with <code>drra submit --hook &lt;id&gt; [--now] &lt;file&gt;</code> or the spool folders. The server's new <code>hook.php</code> checks the signature and a manifest per hook.</li>
+  <li>New <code>[hooks]</code> and <code>[uploads]</code> settings, <code>[https] hook_path</code>, the UPLOADS report section and the <code>drra-upload</code> group.</li>
+</ul>
+
+<h2 id="v10b1">Release 1.0 beta 1 <span class="badge new">October 2026</span></h2>
+<ul>
+  <li><strong>Agent:</strong> C++ systemd service for RHEL 8, 9 and 10, reporting every 15 minutes: system, usage, security settings, failed services, updates and installed packages.</li>
+  <li><strong>Signed uploads:</strong> the Windows agent's protocol: certificate registration, approval on an admin page or with an enrollment token, and signed, time stamped, one time uploads over HTTPS. CIFS and SCP delivery too.</li>
+  <li><strong>Vulnerability scans:</strong> OpenSCAP OVAL on RHEL 8 and 9, Red Hat CSAF/VEX on RHEL 10 (server index built by <code>vex_sync.php</code>, with unfixed CVE counts), dnf updateinfo as fallback, optional SCAP compliance profiles. Off by default.</li>
+  <li><strong>DRSM:</strong> the <code>lra</code> collector, <code>linux/*</code> plugins and the Vulnerabilities page.</li>
+  <li><strong>Packages:</strong> RPMs for RHEL 8, 9 and 10 with a hardened systemd unit.</li>
+</ul>
+<nav class="pager" aria-label="Previous and next page"><a class="card prev" href="troubleshooting.html"><small>Previous</small>Troubleshooting</a></nav>
+  </main>
+</div>
+<footer class="foot">DataReel Reporting Agent for Linux 1.0 beta 2 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+</body>
+</html>
