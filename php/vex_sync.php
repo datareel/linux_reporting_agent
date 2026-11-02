@@ -322,6 +322,13 @@ foreach (explode("\n", $changes) as $line) {
         $todo[$m[1]] = $m[2];
     }
 }
+// Files that failed to download last time are tried again
+$retry = isset($state['retry']) && is_array($state['retry']) ? $state['retry'] : array();
+foreach ($retry as $path) {
+    if (preg_match('/^\d{4}\/cve-\d{4}-\d+\.json$/', $path) && !isset($todo[$path])) {
+        $todo[$path] = '';
+    }
+}
 // Oldest first, so last_change can move forward batch by batch and a
 // run that stops goes on from there next time
 asort($todo);
@@ -363,26 +370,29 @@ function vex_fetch_many($paths) {
 
 $failed = 0;
 $done = 0;
+$state['retry'] = array();
 foreach (array_chunk(array_keys($todo), 16) as $batch) {
     foreach (vex_fetch_many($batch) as $path => $json) {
         if ($json === false) {
+            // Kept on the retry list, so one bad file does not hold back
+            // last_change and make every later run read everything again
             $failed++;
+            $state['retry'][] = $path;
             continue;
         }
         vex_save_record($rec_dir, $path, vex_records($json, $releases));
     }
     $done += count($batch);
-    // Everything up to this batch is in, unless a file failed
-    if ($failed == 0) {
-        $state['last_change'] = $todo[end($batch)];
-        lra_write_atomic($state_file, json_encode($state) . "\n", 0644);
+    $t = $todo[end($batch)];
+    if ($t !== '' && strcmp($t, $state['last_change']) > 0) {
+        $state['last_change'] = $t;
     }
+    lra_write_atomic($state_file, json_encode($state) . "\n", 0644);
     if ($done % 800 == 0) {
         vex_log("  $done of " . count($todo) . " changed files read");
     }
 }
 if ($failed > 0) {
-    // last_change stops before the first failure, the next run retries
     vex_log("WARNING - $failed CVE files could not be downloaded, they are retried next run");
 }
 
