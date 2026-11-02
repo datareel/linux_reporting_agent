@@ -1,7 +1,8 @@
 #!/bin/bash
 # build_rpms.sh
-# Builds the source tarball and the RHEL 8, 9 and 10 RPMs in UBI
-# containers with podman. Output goes to output/.
+# Builds the source tarball, the utils asset (tools/build_utils.sh) and
+# the RHEL 8, 9 and 10 RPMs in UBI containers with podman. Output goes
+# to output/.
 #
 # Usage: tools/build_rpms.sh [8] [9] [10]     (default: all three)
 #
@@ -22,6 +23,8 @@ fi
 TARBALL="${OUT}/${NAME}-${VERSION}.tar.gz"
 git archive --format=tar.gz --prefix="${NAME}-${VERSION}/" -o "${TARBALL}" HEAD
 echo "Source: ${TARBALL}"
+# The utils asset (drra-utils-<version>.tar.gz), published with the RPMs
+"${TOP}/tools/build_utils.sh"
 
 for rel in ${RELEASES}; do
     echo "Building RHEL ${rel} RPM"

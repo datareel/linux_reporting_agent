@@ -11,6 +11,16 @@ dashboard. They use the agent's hook uploads (`drra submit`,
 |------|-----------------|
 | [auth_watch](auth_watch/README.md) | Failed and accepted logins since the last run, remote apart from the host's own |
 
+## Download
+
+Each agent release has the utils as their own asset,
+`drra-utils-<version>.tar.gz` next to the RPMs (built by
+`tools/build_utils.sh`, which `tools/build_rpms.sh` runs). It unpacks
+to `drra-utils-<version>/` with the files of `utils/` below, without
+the tests (those are in the source tarball, they need the agent
+source). The steps below work the same from that folder:
+`sudo ./install_util.sh <name>`.
+
 ## Layout
 
 Each util lives in `utils/<name>/`:
