@@ -23,11 +23,16 @@
 </header>
 <div class="layout">
   <nav class="sidebar" aria-label="Documentation">
-    <h4>Get started</h4><a href="index.html">Overview</a><a href="install.html">Install the agent</a><a href="server.html">Set up the report server</a><h4>Using the agent</h4><a href="approve.html">Approve hosts</a><a href="configuration.html">Configuration</a><a href="reports.html">Reports and DRSM</a><a href="vulnerabilities.html">Vulnerability scans</a><a href="hooks.html">Hooks</a><h4>Reference</h4><a href="security.html">Security</a><a href="building.html">Build from source</a><a href="troubleshooting.html">Troubleshooting</a><a href="changelog.html" class="active" aria-current="page">What's new</a><div class="toc"><a href="#v111">Release 1.1.1</a><a href="#v11">Release 1.1</a><a href="#v10b2">Release 1.0 beta 2</a><a href="#v10b1">Release 1.0 beta 1</a></div><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
+    <h4>Get started</h4><a href="index.html">Overview</a><a href="install.html">Install the agent</a><a href="server.html">Set up the report server</a><h4>Using the agent</h4><a href="approve.html">Approve hosts</a><a href="configuration.html">Configuration</a><a href="reports.html">Reports and DRSM</a><a href="vulnerabilities.html">Vulnerability scans</a><a href="hooks.html">Hooks</a><h4>Reference</h4><a href="security.html">Security</a><a href="building.html">Build from source</a><a href="troubleshooting.html">Troubleshooting</a><a href="changelog.html" class="active" aria-current="page">What's new</a><div class="toc"><a href="#v112">Release 1.1.2</a><a href="#v111">Release 1.1.1</a><a href="#v11">Release 1.1</a><a href="#v10b2">Release 1.0 beta 2</a><a href="#v10b1">Release 1.0 beta 1</a></div><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
   </nav>
   <main class="content" id="main">
 <h1>What's new</h1>
-<p class="lead">Release 1.1.1 lets a scan run by hand update the dashboard. Release 1.1 is the first stable release of the DataReel Reporting Agent for Linux. It has everything from the two 1.0 betas: release 1.0 beta 2 added report hooks and hook uploads, and release 1.0 beta 1 was the first release.</p>
+<p class="lead">Release 1.1.2 fixes the advisory severity of RHEL 10 scans. Release 1.1.1 lets a scan run by hand update the dashboard. Release 1.1 is the first stable release of the DataReel Reporting Agent for Linux. It has everything from the two 1.0 betas: release 1.0 beta 2 added report hooks and hook uploads, and release 1.0 beta 1 was the first release.</p>
+
+<h2 id="v112">Release 1.1.2 <span class="badge new">November 2026</span></h2>
+<ul>
+  <li><strong>Advisory severity on RHEL 10:</strong> CSAF/VEX scans use Red Hat's own severity for each advisory, from dnf, instead of the worst severity of its CVEs. A kernel update Red Hat rates Important was counted as Critical.</li>
+</ul>
 
 <h2 id="v111">Release 1.1.1 <span class="badge new">November 2026</span></h2>
 <ul>
@@ -59,6 +64,6 @@
 <nav class="pager" aria-label="Previous and next page"><a class="card prev" href="troubleshooting.html"><small>Previous</small>Troubleshooting</a></nav>
   </main>
 </div>
-<footer class="foot">DataReel Reporting Agent for Linux 1.1.1 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+<footer class="foot">DataReel Reporting Agent for Linux 1.1.2 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
 </body>
 </html>

@@ -718,8 +718,11 @@ static void MergeDnfAdvisories(const AgentConfig &cfg, std::vector<Advisory> &ad
     if(it != have.end()) {
       Advisory &a = advisories[it->second];
       a.cves.insert(d.cves.begin(), d.cves.end());
-      // dnf has the real title and date
+      // dnf has the advisory's own title, date and severity. VEX only
+      // has each CVE's severity, and the worst CVE can be rated above
+      // the advisory (a Critical CVE in an Important kernel update).
       if(!d.title.empty()) a.title = d.title;
+      if(d.severity != "Unknown") a.severity = d.severity;
       if(!d.issued.empty()) a.issued = d.issued;
       continue;
     }
