@@ -6,7 +6,7 @@ import os, sys
 OUT = sys.argv[1]
 DL = "https://datareel.com/downloads/linux_reporting_agent/"
 DEMO = ""
-VERSION = "1.1"
+VERSION = "1.1.1"
 
 ICON_MENU = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>'
 ICON_DEMO = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>'
@@ -231,10 +231,10 @@ page("install.html", "Install the agent",
 
 <h2 id="rpm">Install the RPM</h2>
 <p>Download the RPM for your release from the <a href="https://datareel.com/downloads/linux_reporting_agent/">downloads page</a> (<code>el8</code>, <code>el9</code> or <code>el10</code>) and check it against its <code>.sha256sum</code> file:</p>
-""" + code([("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1-1.el9.x86_64.rpm"),
-            ("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1-1.el9.x86_64.rpm.sha256sum"),
-            ("$", "sha256sum -c linux_reporting_agent-1.1-1.el9.x86_64.rpm.sha256sum"),
-            ("#", "dnf install ./linux_reporting_agent-1.1-1.el9.x86_64.rpm"),
+""" + code([("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1.1-1.el9.x86_64.rpm"),
+            ("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1.1-1.el9.x86_64.rpm.sha256sum"),
+            ("$", "sha256sum -c linux_reporting_agent-1.1.1-1.el9.x86_64.rpm.sha256sum"),
+            ("#", "dnf install ./linux_reporting_agent-1.1.1-1.el9.x86_64.rpm"),
             ("#", "dnf install openscap-scanner          # RHEL 8 and 9 vulnerability scans")]) + """
 <p>The RPM installs the agent, its settings, the systemd unit and a logrotate file, and makes the <code>drra-upload</code> group. It does not start the service: set the server first.</p>
 
@@ -258,7 +258,7 @@ page("install.html", "Install the agent",
     ["<code>drra run</code>", "Runs as a service: a report every <code>report_interval_minutes</code> (systemd uses this)"],
     ["<code>drra once</code>", "Writes and sends one report, scanning first when a scan is due"],
     ["<code>drra report</code>", "Prints a report, nothing is sent"],
-    ["<code>drra scan</code>", "Runs the vulnerability (and compliance) scan now"],
+    ["<code>drra scan</code>", "Runs the vulnerability (and compliance) scan now and sends a report with the results; <code>--no-send</code> only prints them"],
     ["<code>drra hooks</code>", "Runs the report hooks and prints their HOOKS section"],
     ["<code>drra submit --hook &lt;id&gt; [--now] &lt;file&gt;</code>", "Queues a report from another tool for upload hook &lt;id&gt;; <code>--now</code> asks the service to send it right away"],
     ["<code>drra send-uploads</code>", "Sends the queued upload files now, without a report"],
@@ -541,11 +541,13 @@ page("vulnerabilities.html", "Vulnerability scans",
      [("on", "Turn scans on"), ("sources", "Sources"), ("oval", "RHEL 8 and 9: OpenSCAP"), ("csaf", "RHEL 10: CSAF/VEX"), ("unfixed", "CVEs with no fix"), ("compliance", "Compliance scans"), ("offline", "Hosts with no internet"), ("page", "The Vulnerabilities page")],
      """
 <h1>Vulnerability scans</h1>
-<p class="lead">Once a day the agent lists the Red Hat security advisories (RHSA) the installed packages still need, with their severity, CVEs and fixed packages.</p>
+<p class="lead">A scan lists the Red Hat security advisories (RHSA) the installed packages still need, with their severity, CVEs and fixed packages.</p>
 
-<h2 id="on">Turn scans on</h2>
-<p>The scans are off by default. Turn them on in <code>/etc/drra/drra.ini</code>:</p>
-""" + code([("c", "[scan]"), ("", "enabled=1")]) + code([("#", "systemctl reload drra"), ("#", "drra scan                 # or run one now")]) + """
+<h2 id="on">Scan by hand or on a schedule</h2>
+<p>Scans do not run on their own by default, so a cloud server never gets the load unasked. Run one by hand when you want it: the agent scans, then sends a report with the results, so the DRSM dashboard shows it after its next run. Every later report carries that scan (<code>mode=manual</code>) until the next one.</p>
+""" + code([("#", "drra scan                 # scan and send a report now"), ("#", "drra scan --no-send       # only print the results")]) + """
+<p>To scan every <code>interval_hours</code> (24) on its own instead, turn the schedule on in <code>/etc/drra/drra.ini</code>:</p>
+""" + code([("c", "[scan]"), ("", "enabled=1")]) + code([("#", "systemctl reload drra")]) + """
 <p>An OpenSCAP scan can use about 800 MB of memory for a few minutes: keep that in mind on small cloud servers, or use <code>source=dnf</code> there.</p>
 
 <h2 id="sources">Sources</h2>
@@ -672,8 +674,8 @@ page("building.html", "Build from source",
 """ + code([("#", "dnf install gcc-c++ make openssl-devel libcurl-devel libxml2-devel bzip2-devel zlib-devel")]) + """
 
 <h2 id="make">Build with make</h2>
-""" + code([("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1.tar.gz"),
-            ("$", "tar xzf linux_reporting_agent-1.1.tar.gz && cd linux_reporting_agent-1.1"),
+""" + code([("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1.1.tar.gz"),
+            ("$", "tar xzf linux_reporting_agent-1.1.1.tar.gz && cd linux_reporting_agent-1.1.1"),
             ("$", "make"),
             ("#", "make install            # /usr/sbin/drra, /etc/drra, the systemd unit"),
             ("#", "systemctl daemon-reload")]) + """
@@ -744,10 +746,15 @@ page("troubleshooting.html", "Troubleshooting",
 # ---------------------------------------------------------------- changelog
 page("changelog.html", "What's new",
      "DataReel Reporting Agent for Linux release history.",
-     [("v11", "Release 1.1"), ("v10b2", "Release 1.0 beta 2"), ("v10b1", "Release 1.0 beta 1")],
+     [("v111", "Release 1.1.1"), ("v11", "Release 1.1"), ("v10b2", "Release 1.0 beta 2"), ("v10b1", "Release 1.0 beta 1")],
      """
 <h1>What's new</h1>
-<p class="lead">Release 1.1 is the first stable release of the DataReel Reporting Agent for Linux. It has everything from the two 1.0 betas: release 1.0 beta 2 added report hooks and hook uploads, and release 1.0 beta 1 was the first release.</p>
+<p class="lead">Release 1.1.1 lets a scan run by hand update the dashboard. Release 1.1 is the first stable release of the DataReel Reporting Agent for Linux. It has everything from the two 1.0 betas: release 1.0 beta 2 added report hooks and hook uploads, and release 1.0 beta 1 was the first release.</p>
+
+<h2 id="v111">Release 1.1.1 <span class="badge new">November 2026</span></h2>
+<ul>
+  <li><strong>Scans by hand:</strong> <code>drra scan</code> sends a report with the results right away, and with <code>[scan] enabled=0</code> (the default) every report carries the last manual scan (<code>mode=manual</code>) instead of saying the scan is off.</li>
+</ul>
 
 <h2 id="v11">Release 1.1 <span class="badge new">October 2026</span></h2>
 <ul>

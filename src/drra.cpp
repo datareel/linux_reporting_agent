@@ -50,7 +50,9 @@ static void Usage()
   printf("  run          run as a service: report every report_interval_minutes (systemd uses this)\n");
   printf("  once         write and send one report, scanning first when a scan is due\n");
   printf("  report       print a report to standard output, nothing is sent\n");
-  printf("  scan         run the vulnerability (and compliance) scan now\n");
+  printf("  scan [--no-send]\n");
+  printf("               run the vulnerability (and compliance) scan now and send a report\n");
+  printf("               with it; --no-send only prints the results\n");
   printf("  hooks        run the report hooks and print their HOOKS section\n");
   printf("  submit --hook <id> [--now] <file>\n");
   printf("               queue a report from another tool for upload hook <id> (%s/<id>.ini);\n", AGENT_UPLOADS_DIR_TEXT);
@@ -198,9 +200,18 @@ int main(int argc, char **argv)
     if(!output.empty()) fputs(output.c_str(), stderr);
   }
   else if(command == "scan") {
+    // A scan by hand: run it, then send a report so the dashboard has it
+    // now. --no-send only prints the results.
+    bool send = !(optind + 1 < argc && strcmp(argv[optind + 1], "--no-send") == 0);
     rv = RunScan(cfg, output) == 0 ? 0 : 1;
     fputs(output.c_str(), stdout);
     fputs(ScanReportSections(cfg).c_str(), stdout);
+    if(send) {
+      output.clear();
+      if(ReportCycle(cfg, output) != 0) rv = 1;
+      // Logged, and shown on the terminal by LogMessage
+      LogMessage(cfg, "Report sent after drra scan\n" + output);
+    }
   }
   else if(command == "hooks") {
     fputs(HookReportSection(cfg, output).c_str(), stdout);

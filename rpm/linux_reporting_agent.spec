@@ -2,10 +2,10 @@
 # Built by tools/build_rpms.sh from the source tarball
 # linux_reporting_agent-%{agent_version}.tar.gz
 
-%global agent_version 1.1
+%global agent_version 1.1.1
 
 Name:           linux_reporting_agent
-Version:        1.1
+Version:        1.1.1
 Release:        1%{?dist}
 Summary:        DataReel Reporting Agent for Linux: host reports and vulnerability scans for DRSM
 License:        GPL-3.0-or-later
@@ -74,6 +74,11 @@ exit 0
 %{_docdir}/%{name}
 
 %changelog
+* Sun Nov 01 2026 DataReel Software Development - 1.1.1-1
+- Scans by hand: "drra scan" sends a report with the results right away,
+  and with [scan] enabled=0 every report carries the last manual scan
+  (mode=manual) instead of "disabled"
+
 * Fri Oct 30 2026 DataReel Software Development - 1.1-1
 - Release 1.1: first stable release of the 1.0 betas; HTML documentation
   set (docs/, tools/gen_docs.py)

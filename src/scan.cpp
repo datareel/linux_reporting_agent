@@ -966,15 +966,18 @@ int RunScan(const AgentConfig &cfg, std::string &output)
 
 std::string ScanReportSections(const AgentConfig &cfg)
 {
+  // The last scan goes in every report, from the schedule (enabled=1)
+  // or from "drra scan" run by hand (enabled=0, mode=manual)
   std::string out, data;
-  if(!cfg.scan_enabled) {
-    out += "VULNERABILITIES:\nstatus=disabled\nEND VULNERABILITIES\n\n";
+  std::string mode = std::string("mode=") + (cfg.scan_enabled ? "auto" : "manual") + "\n";
+  if(ReadWholeFile(JoinPath(cfg.data_dir, SCAN_VULN_FILE), data)) {
+    out += "VULNERABILITIES:\n" + mode + data + "END VULNERABILITIES\n\n";
   }
-  else if(ReadWholeFile(JoinPath(cfg.data_dir, SCAN_VULN_FILE), data)) {
-    out += "VULNERABILITIES:\n" + data + "END VULNERABILITIES\n\n";
+  else if(!cfg.scan_enabled) {
+    out += "VULNERABILITIES:\n" + mode + "status=disabled\nEND VULNERABILITIES\n\n";
   }
   else {
-    out += "VULNERABILITIES:\nstatus=pending\nEND VULNERABILITIES\n\n";
+    out += "VULNERABILITIES:\n" + mode + "status=pending\nEND VULNERABILITIES\n\n";
   }
   if(!cfg.compliance_profile.empty() && ReadWholeFile(JoinPath(cfg.data_dir, SCAN_COMPLIANCE_FILE), data)) {
     out += "COMPLIANCE:\n" + data + "END COMPLIANCE\n\n";

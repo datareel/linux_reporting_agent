@@ -27,13 +27,15 @@
   </nav>
   <main class="content" id="main">
 <h1>Vulnerability scans</h1>
-<p class="lead">Once a day the agent lists the Red Hat security advisories (RHSA) the installed packages still need, with their severity, CVEs and fixed packages.</p>
+<p class="lead">A scan lists the Red Hat security advisories (RHSA) the installed packages still need, with their severity, CVEs and fixed packages.</p>
 
-<h2 id="on">Turn scans on</h2>
-<p>The scans are off by default. Turn them on in <code>/etc/drra/drra.ini</code>:</p>
+<h2 id="on">Scan by hand or on a schedule</h2>
+<p>Scans do not run on their own by default, so a cloud server never gets the load unasked. Run one by hand when you want it: the agent scans, then sends a report with the results, so the DRSM dashboard shows it after its next run. Every later report carries that scan (<code>mode=manual</code>) until the next one.</p>
+<pre><code><span class="r"># </span>drra scan                 # scan and send a report now
+<span class="r"># </span>drra scan --no-send       # only print the results</code></pre>
+<p>To scan every <code>interval_hours</code> (24) on its own instead, turn the schedule on in <code>/etc/drra/drra.ini</code>:</p>
 <pre><code><span class="c">[scan]</span>
-enabled=1</code></pre><pre><code><span class="r"># </span>systemctl reload drra
-<span class="r"># </span>drra scan                 # or run one now</code></pre>
+enabled=1</code></pre><pre><code><span class="r"># </span>systemctl reload drra</code></pre>
 <p>An OpenSCAP scan can use about 800 MB of memory for a few minutes: keep that in mind on small cloud servers, or use <code>source=dnf</code> there.</p>
 
 <h2 id="sources">Sources</h2>
@@ -61,6 +63,6 @@ enabled=1</code></pre><pre><code><span class="r"># </span>systemctl reload drra
 <nav class="pager" aria-label="Previous and next page"><a class="card prev" href="reports.html"><small>Previous</small>Reports and DRSM</a><a class="card next" href="hooks.html"><small>Next</small>Hooks</a></nav>
   </main>
 </div>
-<footer class="foot">DataReel Reporting Agent for Linux 1.1 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+<footer class="foot">DataReel Reporting Agent for Linux 1.1.1 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
 </body>
 </html>

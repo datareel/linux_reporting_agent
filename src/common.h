@@ -6,7 +6,7 @@
 #include <map>
 
 #define AGENT_NAME "DataReel Reporting Agent for Linux"
-#define AGENT_VERSION "1.1"
+#define AGENT_VERSION "1.1.1"
 #define AGENT_INI_FILE "/etc/drra/drra.ini"
 #define AGENT_REPORT_SUFFIX "_linux_report_agent.txt"
 #define AGENT_SCAP_SUFFIX "_linux_scap_report.html"

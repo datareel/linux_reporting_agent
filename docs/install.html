@@ -40,10 +40,10 @@
 
 <h2 id="rpm">Install the RPM</h2>
 <p>Download the RPM for your release from the <a href="https://datareel.com/downloads/linux_reporting_agent/">downloads page</a> (<code>el8</code>, <code>el9</code> or <code>el10</code>) and check it against its <code>.sha256sum</code> file:</p>
-<pre><code><span class="p">$ </span>wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1-1.el9.x86_64.rpm
-<span class="p">$ </span>wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1-1.el9.x86_64.rpm.sha256sum
-<span class="p">$ </span>sha256sum -c linux_reporting_agent-1.1-1.el9.x86_64.rpm.sha256sum
-<span class="r"># </span>dnf install ./linux_reporting_agent-1.1-1.el9.x86_64.rpm
+<pre><code><span class="p">$ </span>wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1.1-1.el9.x86_64.rpm
+<span class="p">$ </span>wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1.1-1.el9.x86_64.rpm.sha256sum
+<span class="p">$ </span>sha256sum -c linux_reporting_agent-1.1.1-1.el9.x86_64.rpm.sha256sum
+<span class="r"># </span>dnf install ./linux_reporting_agent-1.1.1-1.el9.x86_64.rpm
 <span class="r"># </span>dnf install openscap-scanner          # RHEL 8 and 9 vulnerability scans</code></pre>
 <p>The RPM installs the agent, its settings, the systemd unit and a logrotate file, and makes the <code>drra-upload</code> group. It does not start the service: set the server first.</p>
 
@@ -70,7 +70,7 @@ enabled=1             ; optional, see Vulnerability scans</code></pre>
 <p>The first cycle registers the host. Without an enrollment token the log says the agent is pending: approve it on the admin page (<a href="approve.html">Approve hosts</a>), and the next report goes through. <code>systemctl reload drra</code> starts the next report now. Settings are read again before every report, so a changed <code>drra.ini</code> needs no restart.</p>
 
 <h2 id="commands">Commands</h2>
-<div class="table-wrap"><table><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody><tr><td><code>drra run</code></td><td>Runs as a service: a report every <code>report_interval_minutes</code> (systemd uses this)</td></tr><tr><td><code>drra once</code></td><td>Writes and sends one report, scanning first when a scan is due</td></tr><tr><td><code>drra report</code></td><td>Prints a report, nothing is sent</td></tr><tr><td><code>drra scan</code></td><td>Runs the vulnerability (and compliance) scan now</td></tr><tr><td><code>drra hooks</code></td><td>Runs the report hooks and prints their HOOKS section</td></tr><tr><td><code>drra submit --hook &lt;id&gt; [--now] &lt;file&gt;</code></td><td>Queues a report from another tool for upload hook &lt;id&gt;; <code>--now</code> asks the service to send it right away</td></tr><tr><td><code>drra send-uploads</code></td><td>Sends the queued upload files now, without a report</td></tr><tr><td><code>drra uploads</code></td><td>Lists the upload hooks and their state</td></tr><tr><td><code>drra register</code></td><td>Registers the agent certificate with the report server</td></tr><tr><td><code>drra fingerprint</code></td><td>Prints the agent key fingerprint to check on the admin page</td></tr><tr><td><code>drra config</code></td><td>Prints the settings in use</td></tr><tr><td><code>drra version</code></td><td>Prints the version</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody><tr><td><code>drra run</code></td><td>Runs as a service: a report every <code>report_interval_minutes</code> (systemd uses this)</td></tr><tr><td><code>drra once</code></td><td>Writes and sends one report, scanning first when a scan is due</td></tr><tr><td><code>drra report</code></td><td>Prints a report, nothing is sent</td></tr><tr><td><code>drra scan</code></td><td>Runs the vulnerability (and compliance) scan now and sends a report with the results; <code>--no-send</code> only prints them</td></tr><tr><td><code>drra hooks</code></td><td>Runs the report hooks and prints their HOOKS section</td></tr><tr><td><code>drra submit --hook &lt;id&gt; [--now] &lt;file&gt;</code></td><td>Queues a report from another tool for upload hook &lt;id&gt;; <code>--now</code> asks the service to send it right away</td></tr><tr><td><code>drra send-uploads</code></td><td>Sends the queued upload files now, without a report</td></tr><tr><td><code>drra uploads</code></td><td>Lists the upload hooks and their state</td></tr><tr><td><code>drra register</code></td><td>Registers the agent certificate with the report server</td></tr><tr><td><code>drra fingerprint</code></td><td>Prints the agent key fingerprint to check on the admin page</td></tr><tr><td><code>drra config</code></td><td>Prints the settings in use</td></tr><tr><td><code>drra version</code></td><td>Prints the version</td></tr></tbody></table></div>
 <p><code>-c &lt;ini file&gt;</code> uses another settings file, for example to test against a development server.</p>
 
 <h2 id="files">Installed files</h2>
@@ -81,6 +81,6 @@ enabled=1             ; optional, see Vulnerability scans</code></pre>
 <nav class="pager" aria-label="Previous and next page"><a class="card prev" href="index.html"><small>Previous</small>Overview</a><a class="card next" href="server.html"><small>Next</small>Set up the report server</a></nav>
   </main>
 </div>
-<footer class="foot">DataReel Reporting Agent for Linux 1.1 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+<footer class="foot">DataReel Reporting Agent for Linux 1.1.1 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
 </body>
 </html>
