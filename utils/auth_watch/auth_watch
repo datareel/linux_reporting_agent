@@ -1,0 +1,379 @@
+#!/bin/bash
+# auth_watch
+# Failed and accepted logins since the last run, from the systemd
+# journal or /var/log/secure, for RHEL 8, 9 and 10. Remote attempts
+# are kept apart from the host's own: sshd from localhost (::1,
+# 127.0.0.1) and local password prompts (gdm, polkit, sudo, su, login)
+# so the owner's typos do not look like an attack.
+#
+# Runs on its own (CSV table to stdout or --out FILE), or hands its
+# result to the DataReel Reporting Agent with --submit (drra submit
+# --hook auth_watch), which sends it to the dashboard. See README.md.
+#
+# Usage: auth_watch [options]       (auth_watch --help)
+#
+# Needs bash, gawk (awk on RHEL), journalctl or /var/log/secure. Root,
+# or --sudo with sudo rights, to read the logs.
+
+PROGRAM=auth_watch
+VERSION=1.0
+HOOK_ID=auth_watch
+
+function usage()
+{
+    cat <<EOF
+Usage: ${PROGRAM} [options]
+
+Summary of failed and accepted logins since the last run.
+
+What to read:
+  --source S         auto (default), journal or secure
+  --log FILE         syslog file to read with --source secure
+                     (default /var/log/secure)
+  --input FILE       parse FILE (- for stdin) as given: journalctl -o
+                     short-iso output or a secure log; no saved position
+  --since TIME       start at TIME instead of the saved position, for
+                     example "24 hours ago" (journal only)
+  --state FILE       saved position (default: ${DEFAULT_STATE})
+  --no-save          do not save the new position
+  --sudo             read the logs and run drra with sudo -n (non-root user)
+  --trusted LIST     addresses that count as trusted, not remote:
+                     IPv4 CIDRs or addresses, IPv6 addresses or host
+                     names, separated by spaces or commas
+
+Output:
+  --format F         csv (default) or lines (DRSM lines: values + table)
+  --out FILE         write to FILE instead of stdout
+
+Agent (DataReel Reporting Agent for Linux):
+  --submit           send the result with drra submit (always in the
+                     lines format the auth_watch manifest reads)
+  --now              ask the agent to send it within seconds
+  --hook ID          upload hook ID (default ${HOOK_ID})
+  --drra PATH        agent program (default drra in PATH or /usr/sbin/drra)
+  --drra-config INI  agent settings file (drra -c INI)
+
+  -h, --help         this help
+  --version          program version
+
+Events: failed, invalid_user, too_many, preauth_closed, accepted.
+Scopes: remote, trusted, localhost (sshd from ::1/127.0.0.1) and local
+(password prompts on the host: gdm, polkit, sudo, su, login).
+EOF
+}
+
+function die()
+{
+    echo "${PROGRAM}: ${*}" >&2
+    exit 1
+}
+
+if [ "$(id -u)" == "0" ]; then
+    DEFAULT_STATE=/var/lib/drra_utils/${PROGRAM}.state
+else
+    DEFAULT_STATE=${XDG_STATE_HOME:-${HOME}/.local/state}/drra_utils/${PROGRAM}.state
+fi
+
+SOURCE=auto
+LOG_FILE=/var/log/secure
+INPUT=""
+SINCE=""
+STATE_FILE="${DEFAULT_STATE}"
+SAVE=1
+SUDO=()
+TRUSTED=""
+FORMAT=csv
+OUT=""
+SUBMIT=0
+NOW=0
+DRRA=""
+DRRA_CONFIG=""
+
+while [ $# -gt 0 ]; do
+    case "${1}" in
+	--source) SOURCE="${2}"; shift ;;
+	--log) LOG_FILE="${2}"; SOURCE=secure; shift ;;
+	--input) INPUT="${2}"; shift ;;
+	--since) SINCE="${2}"; shift ;;
+	--state) STATE_FILE="${2}"; shift ;;
+	--no-save) SAVE=0 ;;
+	--sudo) SUDO=(sudo -n) ;;
+	--trusted) TRUSTED="${2}"; shift ;;
+	--format) FORMAT="${2}"; shift ;;
+	--out) OUT="${2}"; shift ;;
+	--submit) SUBMIT=1 ;;
+	--now) NOW=1 ;;
+	--hook) HOOK_ID="${2}"; shift ;;
+	--drra) DRRA="${2}"; shift ;;
+	--drra-config) DRRA_CONFIG="${2}"; shift ;;
+	-h|--help) usage; exit 0 ;;
+	--version) echo "${PROGRAM} ${VERSION}"; exit 0 ;;
+	*) echo "${PROGRAM}: unknown option ${1}" >&2; usage >&2; exit 2 ;;
+    esac
+    shift
+done
+
+case "${SOURCE}" in auto|journal|secure) ;; *) die "--source must be auto, journal or secure" ;; esac
+case "${FORMAT}" in csv|lines) ;; *) die "--format must be csv or lines" ;; esac
+if [ "${SUBMIT}" == "1" ]; then
+    if [ "${DRRA}" == "" ]; then
+	DRRA=$(command -v drra 2> /dev/null || echo /usr/sbin/drra)
+    fi
+    [ -x "${DRRA}" ] || die "agent program ${DRRA} not found, install the agent or use --drra"
+fi
+if [ "${SOURCE}" == "auto" ]; then
+    if command -v journalctl > /dev/null 2>&1; then SOURCE=journal; else SOURCE=secure; fi
+fi
+
+WORK=$(mktemp -d) || die "cannot make a temporary folder"
+trap 'rm -rf "${WORK}"' EXIT
+RAW="${WORK}/raw.log"
+NEW_STATE="${WORK}/state"
+
+# Saved position: name=value lines
+function state_value()
+{
+    [ -f "${STATE_FILE}" ] && sed -n "s/^${1}=//p" "${STATE_FILE}" | head -1
+}
+
+# The secure log from byte offset $2 of the file with inode $1 (rotated
+# to <log>-YYYYMMDD after the last run) and all of the current file
+function read_secure()
+{
+    local inode offset cur_inode size f
+    inode=$(state_value inode)
+    offset=$(state_value offset)
+    [[ "${offset}" =~ ^[0-9]+$ ]] || offset=0
+    [ "$(state_value file)" == "${LOG_FILE}" ] || { inode=""; offset=0; }
+    cur_inode=$("${SUDO[@]}" stat -c %i "${LOG_FILE}" 2> /dev/null) || die "cannot read ${LOG_FILE} (root or --sudo)"
+    size=$("${SUDO[@]}" stat -c %s "${LOG_FILE}")
+    : > "${RAW}"
+    if [ "${inode}" != "" ] && [ "${inode}" != "${cur_inode}" ]; then
+	for f in $("${SUDO[@]}" ls -1t "${LOG_FILE}"-* 2> /dev/null); do
+	    if [ "$("${SUDO[@]}" stat -c %i "${f}" 2> /dev/null)" == "${inode}" ]; then
+		"${SUDO[@]}" tail -c +$(( offset + 1 )) "${f}" >> "${RAW}" 2> /dev/null
+		break
+	    fi
+	done
+	offset=0
+    elif [ "${inode}" == "" ] || [ "${offset}" -gt "${size}" ]; then
+	offset=0
+    fi
+    # Read up to the size seen now, a line written meanwhile waits for the next run
+    "${SUDO[@]}" tail -c +$(( offset + 1 )) "${LOG_FILE}" | head -c $(( size - offset )) >> "${RAW}" \
+	|| die "cannot read ${LOG_FILE}"
+    printf 'source=secure\nfile=%s\ninode=%s\noffset=%s\n' "${LOG_FILE}" "${cur_inode}" "${size}" > "${NEW_STATE}"
+}
+
+# Journal entries of the auth (4) and authpriv (10) facilities after the
+# saved cursor, or since --since, or the last 24 hours on the first run
+function read_journal()
+{
+    local cursor args
+    cursor=$(state_value cursor)
+    args=(-q --no-pager -o short-iso --show-cursor SYSLOG_FACILITY=4 SYSLOG_FACILITY=10)
+    if [ "${SINCE}" != "" ]; then
+	args+=(--since "${SINCE}")
+    elif [ "${cursor}" != "" ] && [ "$(state_value source)" == "journal" ]; then
+	args+=(--after-cursor "${cursor}")
+    else
+	args+=(--since "24 hours ago")
+    fi
+    "${SUDO[@]}" journalctl "${args[@]}" > "${RAW}" 2> "${WORK}/journal.err" \
+	|| die "journalctl failed: $(head -1 "${WORK}/journal.err")"
+    if [ "$(id -u)" != "0" ] && [ ${#SUDO[@]} -eq 0 ] && ! id -nG | grep -qwE 'systemd-journal|wheel|adm'; then
+	echo "${PROGRAM}: WARNING - not root, the journal shows only this user's entries (use --sudo)" >&2
+    fi
+    local new
+    new=$(sed -n 's/^-- cursor: //p' "${RAW}" | tail -1)
+    sed -i '/^-- cursor: /d' "${RAW}"
+    [ "${new}" == "" ] && new="${cursor}"
+    printf 'source=journal\ncursor=%s\n' "${new}" > "${NEW_STATE}"
+}
+
+if [ "${INPUT}" != "" ]; then
+    SOURCE=input
+    SAVE=0
+    if [ "${INPUT}" == "-" ]; then cat > "${RAW}"; else cat -- "${INPUT}" > "${RAW}" || die "cannot read ${INPUT}"; fi
+elif [ "${SOURCE}" == "journal" ]; then
+    read_journal
+else
+    read_secure
+fi
+
+# Classify the lines. Output: E<TAB>scope|service|event|method|user|source<TAB>count<TAB>first<TAB>last
+# for each group, then V<TAB>name<TAB>value for the summary values.
+awk -v trusted="${TRUSTED}" -v source="${SOURCE}" '
+function ip4(s,   p) {
+    if (s !~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) return -1
+    split(s, p, ".")
+    return ((p[1] * 256 + p[2]) * 256 + p[3]) * 256 + p[4]
+}
+function is_trusted(ip,   i, n, t, parts, bits, a, b, div) {
+    for (i = 1; i <= ntrust; i++) {
+	t = trust[i]
+	if (t == ip) return 1
+	if (split(t, parts, "/") == 2 && (a = ip4(ip)) >= 0 && (b = ip4(parts[1])) >= 0) {
+	    bits = parts[2] + 0
+	    div = 2 ^ (32 - bits)
+	    if (int(a / div) == int(b / div)) return 1
+	}
+    }
+    return 0
+}
+function scope_of(ip) {
+    sub(/^::ffff:/, "", ip)
+    if (ip == "") return "local"
+    if (ip ~ /^127\./ || ip == "::1" || ip == "localhost") return "localhost"
+    if (is_trusted(ip)) return "trusted"
+    return "remote"
+}
+function clean(s) {
+    gsub(/[\001-\037\177|,"]/, "_", s)
+    return substr(s, 1, 64)
+}
+function add(scope, service, event, method, user, src,   k) {
+    k = scope "|" clean(service) "|" event "|" clean(method) "|" clean(user) "|" clean(src)
+    if (!(k in count)) first[k] = ts
+    count[k]++
+    last[k] = ts
+    total[scope "_" event]++
+    if (event != "accepted" && scope != "local") srcs[scope, src] = 1
+    nevents++
+}
+BEGIN {
+    ntrust = split(trusted, trust, /[ ,]+/)
+    for (i = ntrust; i >= 1; i--) if (trust[i] == "") { delete trust[i]; ntrust-- }
+}
+{
+    # journalctl -o short-iso: 2026-11-01T10:20:01-05:00 host ident[pid]: message
+    # syslog file:             Nov  1 10:20:01 host ident[pid]: message
+    if (match($0, /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[^ ]+ [^ ]+ /)) {
+	ts = substr($0, 1, index($0, " ") - 1)
+    } else if (match($0, /^[A-Z][a-z][a-z] [ 0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9] [^ ]+ /)) {
+	ts = substr($0, 1, 15)
+    } else if (match($0, /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9][T ][0-9:.]+[^ ]* [^ ]+ /)) {
+	ts = substr($0, 1, index($0, " ") - 1)
+    } else {
+	next
+    }
+    rest = substr($0, RLENGTH + 1)
+    if (!match(rest, /^[^ ]+: /)) next
+    ident = substr(rest, 1, RLENGTH - 2)
+    msg = substr(rest, RLENGTH + 1)
+    proc = ident
+    sub(/\[[0-9]+\]$/, "", ident)
+    if (index(ident, "[") == 0) sub(/\]$/, "", ident)
+    nlines++
+
+    if (ident ~ /^sshd(-session|-auth)?$/) {
+	if (match(msg, /^Failed ([^ ]+) for (invalid user )?([^ ]*) from ([^ ]+) port [0-9]+/, m)) {
+	    add(scope_of(m[4]), "sshd", "failed", m[1], m[3], m[4])
+	} else if (match(msg, /^Invalid user ([^ ]*) ?from ([^ ]+) port [0-9]+/, m)) {
+	    add(scope_of(m[2]), "sshd", "invalid_user", "", m[1], m[2])
+	} else if (match(msg, /^(error: )?maximum authentication attempts exceeded for (invalid user )?([^ ]*) from ([^ ]+) port [0-9]+/, m)) {
+	    add(scope_of(m[4]), "sshd", "too_many", "", m[3], m[4])
+	} else if (match(msg, /^Connection (closed|reset) by authenticating user ([^ ]*) ([^ ]+) port [0-9]+ \[preauth\]/, m)) {
+	    add(scope_of(m[3]), "sshd", "preauth_closed", "", m[2], m[3])
+	} else if (match(msg, /^Accepted ([^ ]+) for ([^ ]*) from ([^ ]+) port [0-9]+/, m)) {
+	    add(scope_of(m[3]), "sshd", "accepted", m[1], m[2], m[3])
+	}
+	next
+    }
+    # PAM password failures of every other service (sshd has its own
+    # lines above). pam_unix and pam_sss can both log one failure, so a
+    # process logs at most one failure per service and second.
+    if (match(msg, /^pam_[a-z0-9_]+\(([^:)]+):auth\): authentication failure;/, m)) {
+	service = m[1]
+	if (service == "sshd") next
+	if (seen[proc, service, ts]++) next
+	rhost = ""; user = ""
+	if (match(msg, / rhost=([^ ]*)/, r)) rhost = r[1]
+	if (match(msg, / user=([^ ]*)/, u)) user = u[1]
+	else if (match(msg, / ruser=([^ ]*)/, u)) user = u[1]
+	add(scope_of(rhost), service, "failed", "password", user, rhost)
+	next
+    }
+    # Logins at the console and the graphical login
+    if (match(msg, /^pam_unix\((login|gdm-password):session\): session opened for user ([^( ]+)/, m)) {
+	add("local", m[1], "accepted", "password", m[2], "")
+    }
+}
+END {
+    rank["remote"] = 1; rank["trusted"] = 2; rank["localhost"] = 3; rank["local"] = 4
+    for (k in count) {
+	split(k, f, "|")
+	printf "E\t%d\t%d\t%s\t%s\t%s\n", rank[f[1]], count[k], k, first[k], last[k]
+    }
+    for (k in srcs) { split(k, f, SUBSEP); nsrc[f[1]]++ }
+    split("remote trusted localhost local", scopes, " ")
+    split("failed invalid_user too_many preauth_closed accepted", events, " ")
+    for (i = 1; i <= 4; i++) {
+	for (j = 1; j <= 5; j++) {
+	    if (scopes[i] == "local" && events[j] != "failed" && events[j] != "accepted") continue
+	    printf "V\t%s_%s\t%d\n", scopes[i], events[j], total[scopes[i] "_" events[j]]
+	}
+	if (scopes[i] != "local") printf "V\t%s_sources\t%d\n", scopes[i], nsrc[scopes[i]]
+    }
+    printf "V\tlines_read\t%d\n", nlines
+    printf "V\tevents\t%d\n", nevents
+}' "${RAW}" > "${WORK}/parsed" || die "awk failed (gawk is needed)"
+
+# Groups sorted by scope, then count
+grep '^E' "${WORK}/parsed" | sort -t "$(printf '\t')" -k2,2n -k3,3nr | cut -f3- > "${WORK}/groups"
+grep '^V' "${WORK}/parsed" | cut -f2- > "${WORK}/values"
+function value() { awk -F '\t' -v n="${1}" '$1 == n { print $2 }' "${WORK}/values"; }
+
+# $1 == format, $2 == output file
+function write_output()
+{
+    local first last
+    if [ "${1}" == "csv" ]; then
+	echo "scope,service,event,method,user,source,count,first,last" > "${2}"
+	awk -F '\t' '{ split($2, f, "|"); printf "%s,%s,%s,%s,%s,%s,%s,%s,%s\n", f[1], f[2], f[3], f[4], f[5], f[6], $1, $3, $4 }' \
+	    "${WORK}/groups" >> "${2}"
+	return
+    fi
+    first=$(cut -f3 "${WORK}/groups" | sort | head -1)
+    last=$(cut -f4 "${WORK}/groups" | sort | tail -1)
+    {
+	echo "INFO - ${PROGRAM} ${VERSION} on $(hostname -s): $(value remote_failed) remote failed logins," \
+	    "$(value remote_invalid_user) invalid users from $(value remote_sources) sources," \
+	    "$(value remote_accepted) remote logins accepted; $(value localhost_failed) localhost and" \
+	    "$(value local_failed) local failures not counted as remote (${SOURCE})"
+	while IFS=$'\t' read -r n v; do echo "DETAIL ${n}=${v}"; done < "${WORK}/values"
+	echo "DETAIL source=${SOURCE}"
+	echo "DETAIL first_event=${first:-none}"
+	echo "DETAIL last_event=${last:-none}"
+	echo "DETAIL collected=$(date '+%Y-%m-%dT%H:%M:%S%z')"
+	echo "UPLOAD columns|Scope|Service|Event|Method|User|Source|Count|First|Last"
+	awk -F '\t' '{ printf "UPLOAD row|%s|%s|%s|%s\n", $2, $1, $3, $4 }' "${WORK}/groups"
+    } > "${2}"
+}
+
+write_output "${FORMAT}" "${WORK}/out"
+if [ "${OUT}" != "" ]; then
+    cp "${WORK}/out" "${OUT}" || die "cannot write ${OUT}"
+elif [ "${SUBMIT}" == "0" ]; then
+    cat "${WORK}/out"
+fi
+
+if [ "${SUBMIT}" == "1" ]; then
+    # The agent reads the file as root or as a drra-upload member
+    PAYLOAD="${WORK}/${PROGRAM}_$(hostname -s)_$(date +%Y%m%d%H%M%S).txt"
+    write_output lines "${PAYLOAD}"
+    chmod 644 "${PAYLOAD}"
+    chmod 755 "${WORK}"
+    args=()
+    [ "${DRRA_CONFIG}" != "" ] && args+=(-c "${DRRA_CONFIG}")
+    args+=(submit --hook "${HOOK_ID}")
+    [ "${NOW}" == "1" ] && args+=(--now)
+    "${SUDO[@]}" "${DRRA}" "${args[@]}" "${PAYLOAD}" || die "drra submit failed, the position is not saved"
+fi
+
+if [ "${SAVE}" == "1" ]; then
+    mkdir -p "$(dirname "${STATE_FILE}")" && chmod 700 "$(dirname "${STATE_FILE}")" 2> /dev/null
+    cp "${NEW_STATE}" "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "${STATE_FILE}" \
+	|| die "cannot save the position in ${STATE_FILE}"
+fi
+exit 0

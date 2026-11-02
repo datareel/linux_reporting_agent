@@ -1,0 +1,8 @@
+2026-10-31T01:00:00-04:00 web2 sshd-session[3101]: Invalid user oracle from 2001:db8::5 port 33000
+2026-10-31T01:00:02-04:00 web2 sshd-session[3101]: Failed password for invalid user oracle from 2001:db8::5 port 33000 ssh2
+2026-10-31T01:00:03-04:00 web2 sshd-session[3102]: Failed keyboard-interactive/pam for root from 203.0.113.8 port 33010 ssh2
+2026-10-31T01:00:04-04:00 web2 sshd-auth[3103]: Connection reset by authenticating user root 203.0.113.8 port 33020 [preauth]
+2026-10-31T09:00:00-04:00 web2 sshd-session[3200]: Accepted publickey for owner from 127.0.0.1 port 41076 ssh2: ED25519 SHA256:y
+2026-10-31T09:01:00-04:00 web2 gdm-password][3300]: pam_unix(gdm-password:auth): authentication failure; logname=owner uid=0 euid=0 tty=/dev/tty1 ruser= rhost=  user=owner
+2026-10-31T09:01:10-04:00 web2 gdm-password][3301]: pam_unix(gdm-password:session): session opened for user owner(uid=1000) by owner(uid=0)
+-- cursor: s=abc;i=1

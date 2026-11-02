@@ -1,0 +1,24 @@
+Oct 30 02:11:01 web1 sshd[2101]: Invalid user admin from 203.0.113.7 port 50122
+Oct 30 02:11:03 web1 sshd[2101]: pam_unix(sshd:auth): authentication failure; logname= uid=0 euid=0 tty=ssh ruser= rhost=203.0.113.7
+Oct 30 02:11:05 web1 sshd[2101]: Failed password for invalid user admin from 203.0.113.7 port 50122 ssh2
+Oct 30 02:11:09 web1 sshd[2101]: Connection closed by invalid user admin 203.0.113.7 port 50122 [preauth]
+Oct 30 02:12:00 web1 sshd[2140]: Failed password for root from 203.0.113.7 port 50300 ssh2
+Oct 30 02:12:04 web1 sshd[2140]: Failed password for root from 203.0.113.7 port 50300 ssh2
+Oct 30 02:12:08 web1 sshd[2140]: error: maximum authentication attempts exceeded for root from 203.0.113.7 port 50300 ssh2 [preauth]
+Oct 30 02:12:08 web1 sshd[2140]: Disconnecting authenticating user root 203.0.113.7 port 50300: Too many authentication failures [preauth]
+Oct 30 03:00:00 web1 sshd[2200]: Connection closed by authenticating user root 198.51.100.20 port 41000 [preauth]
+Oct 30 07:45:10 web1 sshd[2300]: Accepted publickey for deploy from 198.51.100.44 port 51515 ssh2: RSA SHA256:abc
+Oct 30 07:46:00 web1 sshd[2310]: Failed password for owner from ::1 port 40000 ssh2
+Oct 30 07:46:05 web1 sshd[2310]: Accepted password for owner from ::1 port 40000 ssh2
+Oct 30 07:47:00 web1 sshd[2320]: Accepted publickey for owner from ::ffff:127.0.0.1 port 40002 ssh2: ED25519 SHA256:x
+Oct 30 08:00:00 web1 sudo[2400]: pam_unix(sudo:auth): authentication failure; logname=owner uid=1000 euid=0 tty=/dev/pts/0 ruser=owner rhost=  user=owner
+Oct 30 08:00:00 web1 sudo[2400]: pam_sss(sudo:auth): authentication failure; logname=owner uid=1000 euid=0 tty=/dev/pts/0 ruser=owner rhost= user=owner
+Oct 30 08:00:02 web1 sudo[2400]:    owner : 1 incorrect password attempt ; TTY=pts/0 ; PWD=/home/owner ; USER=root ; COMMAND=/bin/ls
+Oct 30 08:01:00 web1 su[2410]: pam_unix(su:auth): authentication failure; logname=owner uid=1000 euid=0 tty=pts/0 ruser=owner rhost=  user=root
+Oct 30 08:01:01 web1 su[2410]: FAILED SU (to root) owner on pts/0
+Oct 30 08:02:00 web1 unix_chkpwd[2420]: password check failed for user (owner)
+Oct 30 08:02:00 web1 polkit-agent-helper-1[2420]: pam_unix(polkit-1:auth): authentication failure; logname=owner uid=1000 euid=0 tty= ruser=owner rhost=  user=owner
+Oct 30 08:03:00 web1 cockpit-session[2430]: pam_unix(cockpit:auth): authentication failure; logname= uid=0 euid=0 tty= ruser= rhost=192.0.2.99 user=admin
+Oct 30 08:04:00 web1 sshd[2440]: Failed password for owner from 10.1.2.3 port 40100 ssh2
+Oct 30 08:05:00 web1 login[2450]: pam_unix(login:session): session opened for user owner(uid=1000) by LOGIN(uid=0)
+Oct 30 08:06:00 web1 sshd[2460]: Received disconnect from 203.0.113.7 port 50999:11: Bye Bye [preauth]

@@ -147,6 +147,11 @@ manifest_dir` in `server.ini`. The manifest picks the format
 `html`), the alert rules and how DRSM shows the data. See "Hook
 uploads" in DRSM's PLUGINS.md.
 
+Standalone programs that make such reports, for example `auth_watch`
+(a login summary that keeps remote attempts apart from the host's own),
+are in `utils/`. Each one runs without the agent and sends its result
+with `--submit`; see `utils/README.md`.
+
 Report hooks (`/etc/drra/report.d`, above) are the other kind of hook:
 scripts the agent runs with every report. Use them for a check that
 must run on the host each time; use hook uploads for a file that some
