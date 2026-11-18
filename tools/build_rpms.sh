@@ -4,7 +4,7 @@
 # the RHEL 8, 9 and 10 RPMs in UBI containers with podman. Output goes
 # to output/.
 #
-# Usage: tools/build_rpms.sh [8] [9] [10]     (default: all three)
+# Usage: [JOBS=4] tools/build_rpms.sh [8] [9] [10]     (default: all three)
 #
 # Builds from the committed tree (git archive HEAD), so commit first.
 #
@@ -75,7 +75,7 @@ dnf -q -y install rpm-build gcc-c++ make binutils pkgconf-pkg-config ${DEVEL} li
 mkdir -p ~/rpmbuild/SOURCES
 cp /out/${NAME}-${VERSION}.tar.gz ~/rpmbuild/SOURCES/
 ${EXTRA}
-rpmbuild -bb --quiet /spec/${NAME}.spec
+rpmbuild -bb --quiet --define \"_smp_mflags -j${JOBS:-4}\" /spec/${NAME}.spec
 cp ~/rpmbuild/RPMS/*/${NAME}-*.rpm /out/
 "
 done

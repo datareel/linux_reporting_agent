@@ -83,7 +83,8 @@ pushd openssl-%{openssl_version}
 make %{?_smp_mflags}
 make install_sw
 popd
-# libcurl, static, only HTTP and HTTPS, on that OpenSSL, the system CA bundle
+# libcurl, static, only HTTP and HTTPS, on that OpenSSL (not the system
+# 1.1.1 headers from openssl-devel), the system CA bundle
 pushd curl-%{curl_version}
 ./configure --prefix=$B --disable-shared --enable-static --with-pic \
   --with-openssl=$B --with-zlib --with-ca-bundle=/etc/pki/tls/certs/ca-bundle.crt --without-ca-path \
@@ -92,7 +93,8 @@ pushd curl-%{curl_version}
   --disable-mqtt --disable-websockets --disable-ntlm --disable-manual --disable-docs \
   --without-libpsl --without-brotli --without-zstd --without-nghttp2 --without-nghttp3 \
   --without-libidn2 --without-libssh2 --without-libssh --without-gssapi --without-libgsasl \
-  LDFLAGS="-L$B/lib" LIBS="-ldl -lpthread"
+  CPPFLAGS="-I$B/include" LDFLAGS="-L$B/lib" LIBS="-ldl -lpthread" \
+  PKG_CONFIG_PATH="$B/lib/pkgconfig" PKG_CONFIG_LIBDIR="$B/lib/pkgconfig"
 make %{?_smp_mflags}
 make install
 popd
