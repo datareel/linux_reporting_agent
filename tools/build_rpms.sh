@@ -6,6 +6,14 @@
 #
 # Usage: [JOBS=4] tools/build_rpms.sh [8] [9] [10]     (default: all three)
 #
+# Release blocklist: every built RPM (header, scripts, changelog, files and
+# strings in the binaries) and the tarballs are scanned for the extended
+# regular expressions in DRRA_RELEASE_BLOCKLIST (default
+# ~/.config/drra_release/blocklist.txt, one per line, # comments), such as
+# host names and domains that must never be published. The list is kept
+# outside the repository so the names in it are never published either.
+# The build fails if the list is missing or anything matches.
+#
 # Builds from the committed tree (git archive HEAD), so commit first.
 #
 # The RPM %check runs tools/check_openssl.sh: RHEL 9/10 and the RHEL 8
@@ -26,6 +34,15 @@ mkdir -p "${OUT}"
 if ! git diff --quiet HEAD -- . 2>/dev/null; then
     echo "WARNING - uncommitted changes are not in the build (git archive HEAD)"
 fi
+BLOCKLIST="${DRRA_RELEASE_BLOCKLIST:-${HOME}/.config/drra_release/blocklist.txt}"
+PATTERNS=$(mktemp)
+trap 'rm -f "${PATTERNS}"' EXIT
+grep -v -e '^#' -e '^[[:space:]]*$' "${BLOCKLIST}" > "${PATTERNS}" 2>/dev/null || true
+if [ ! -s "${PATTERNS}" ]; then
+    echo "ERROR - release blocklist ${BLOCKLIST} is missing or empty (set DRRA_RELEASE_BLOCKLIST)"
+    exit 1
+fi
+
 TARBALL="${OUT}/${NAME}-${VERSION}.tar.gz"
 git archive --format=tar.gz --prefix="${NAME}-${VERSION}/" -o "${TARBALL}" HEAD
 echo "Source: ${TARBALL}"
@@ -67,7 +84,8 @@ for rel in ${RELEASES}; do
 	EXTRA=":"
     fi
     # Rootless podman here has no subuids, so ignore chown errors
-    podman --storage-opt overlay.ignore_chown_errors=true run --rm \
+    # A fixed build host name, recorded in the RPM header
+    podman --storage-opt overlay.ignore_chown_errors=true run --rm --hostname "drra-build-el${rel}" \
 	-v "${OUT}:/out:z" -v "${TOP}/rpm:/spec:ro,z" \
 	"registry.access.redhat.com/ubi${rel}/ubi:latest" bash -c "
 set -e
@@ -79,4 +97,47 @@ rpmbuild -bb --quiet --define \"_smp_mflags -j${JOBS:-4}\" /spec/${NAME}.spec
 cp ~/rpmbuild/RPMS/*/${NAME}-*.rpm /out/
 "
 done
+# Release blocklist scan of what was built
+scan_failed=0
+scan_text() {
+    # $1 == label; text on standard input
+    local hits
+    hits=$(grep -n -i -E -f "${PATTERNS}" | head -20)
+    if [ -n "${hits}" ]; then
+	echo "ERROR - release blocklist match in ${1}:"
+	echo "${hits}" | sed 's/^/    /'
+	scan_failed=1
+    fi
+}
+SCAN=$(mktemp -d)
+for f in "${TARBALL}" "${OUT}/drra-utils-${VERSION}.tar.gz"; do
+    [ -f "${f}" ] || continue
+    rm -rf "${SCAN:?}"/*
+    tar xzf "${f}" -C "${SCAN}"
+    scan_text "$(basename "${f}") (names)" < <(cd "${SCAN}" && find . -print)
+    while IFS= read -r -d '' x; do
+	scan_text "$(basename "${f}"):${x#${SCAN}/}" < <(strings -a "${x}")
+    done < <(find "${SCAN}" -type f -print0)
+done
+for rel in ${RELEASES}; do
+    for rpm in "${OUT}"/${NAME}-*${VERSION}-*.el${rel}.x86_64.rpm; do
+	[ -f "${rpm}" ] || continue
+	b=$(basename "${rpm}")
+	scan_text "${b} (header)" < <(rpm -qp --info --changelog --scripts --triggers --requires --provides \
+	    --qf 'buildhost=%{BUILDHOST}\n' "${rpm}" 2>&1)
+	rm -rf "${SCAN:?}"/*
+	(cd "${SCAN}" && rpm2cpio "${rpm}" | cpio -idm --quiet 2>/dev/null)
+	scan_text "${b} (names)" < <(cd "${SCAN}" && find . -print)
+	while IFS= read -r -d '' x; do
+	    scan_text "${b}:${x#${SCAN}/}" < <(strings -a "${x}")
+	done < <(find "${SCAN}" -type f -print0)
+    done
+done
+rm -rf "${SCAN}"
+if [ "${scan_failed}" != 0 ]; then
+    echo "ERROR - release blocklist matches: these files must not be published"
+    exit 1
+fi
+echo "Release blocklist scan: no matches (${BLOCKLIST})"
+
 cd "${OUT}" && ls -1 ${NAME}-*${VERSION}* && sha256sum ${NAME}-*${VERSION}* | grep -v sha256 > ${NAME}-${VERSION}.sha256sum

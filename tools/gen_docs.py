@@ -704,7 +704,10 @@ page("building.html", "Build from source",
 
 <h2 id="tests">Tests</h2>
 """ + code([("$", "tests/drsm_test.sh           # DRSM plugins and pages against a DRSM checkout"),
-            ("$", "tests/uploads_test.sh        # hook uploads end to end with php -S")]) + """
+            ("$", "tests/uploads_test.sh        # hook uploads end to end with php -S"),
+            ("$", "tests/rpm_install_test.sh output/linux_reporting_agent-<new>.el8.x86_64.rpm [<old>.el8.x86_64.rpm]"),
+            ("", "                             # RHEL 8 RPM: standard or FIPS build picked, upgrade, removal")]) + """
+<p><code>tools/build_rpms.sh</code> also scans every RPM and tarball it makes against a release blocklist kept outside the repository (<code>DRRA_RELEASE_BLOCKLIST</code>, default <code>~/.config/drra_release/blocklist.txt</code>: host names and domains that must never be published) and fails on a match or a missing list.</p>
 
 <h2 id="files">Source files</h2>
 """ + table(["File", "Contents"], [
