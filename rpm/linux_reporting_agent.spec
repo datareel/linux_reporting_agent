@@ -68,9 +68,9 @@ pushd curl-%{curl_version}
   --with-openssl --with-zlib --with-ca-bundle=/etc/pki/tls/certs/ca-bundle.crt --without-ca-path \
   --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
   --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher \
-  --disable-mqtt --disable-smb --disable-websockets --disable-ntlm --disable-manual --disable-docs \
+  --disable-mqtt --disable-websockets --disable-ntlm --disable-manual --disable-docs \
   --without-libpsl --without-brotli --without-zstd --without-nghttp2 --without-nghttp3 \
-  --without-libidn2 --without-libssh2 --without-libssh --without-librtmp --without-gssapi --without-libgsasl
+  --without-libidn2 --without-libssh2 --without-libssh --without-gssapi --without-libgsasl
 make %{?_smp_mflags}
 make install
 popd
