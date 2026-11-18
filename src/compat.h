@@ -2,7 +2,9 @@
 #define COMPAT_H
 
 // Builds on RHEL 8 (OpenSSL 1.1.1, libcurl 7.61), RHEL 9 (OpenSSL 3.0,
-// libcurl 7.76) and RHEL 10 (OpenSSL 3.2 and later, libcurl 8)
+// libcurl 7.76) and RHEL 10 (OpenSSL 3.2 and later, libcurl 8). Release
+// RPMs need OpenSSL 3.5 or later: on RHEL 8 that is EPEL's openssl3 with
+// a static libcurl built against it (rpm/linux_reporting_agent.spec).
 
 #include <curl/curl.h>
 #include <openssl/evp.h>
@@ -19,6 +21,13 @@ static inline void AgentCurlProtocols(CURL *curl, bool https_only_redirects)
   curl_easy_setopt(curl, CURLOPT_PROTOCOLS, (long)(CURLPROTO_HTTP | CURLPROTO_HTTPS));
   curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS, (long)(https_only_redirects ? CURLPROTO_HTTPS : (CURLPROTO_HTTP | CURLPROTO_HTTPS)));
 #endif
+}
+
+// TLS 1.2 is the oldest version the agent speaks, whatever the host's
+// crypto policy allows (RHEL 8 LEGACY allows TLS 1.0)
+static inline void AgentCurlTlsMin(CURL *curl)
+{
+  curl_easy_setopt(curl, CURLOPT_SSLVERSION, (long)CURL_SSLVERSION_TLSv1_2);
 }
 
 static inline EVP_PKEY *AgentRsaGenerate(unsigned int bits)

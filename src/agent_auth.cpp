@@ -283,6 +283,7 @@ int HttpPostMultipart(const AgentConfig &cfg, const std::string &path, const For
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, CurlWrite);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
   AgentCurlProtocols(curl, false);
+  AgentCurlTlsMin(curl);
   // Never follow redirects: a signed request goes only where it was meant to
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
   if(cfg.use_https) {

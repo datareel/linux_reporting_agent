@@ -32,6 +32,7 @@
 #include "scan.h"
 #include "hooks.h"
 #include "uploads.h"
+#include "tlscheck.h"
 
 static volatile sig_atomic_t g_stop = 0;
 static volatile sig_atomic_t g_wake = 0;
@@ -62,6 +63,9 @@ static void Usage()
   printf("  register     register the agent certificate with the report server\n");
   printf("  fingerprint  print the agent key fingerprint to check on the admin page\n");
   printf("  config       print the settings in use\n");
+  printf("  selftest [https://host/]\n");
+  printf("               check the OpenSSL (3.5 or later) and libcurl in use; with a URL, also\n");
+  printf("               connect and print the TLS version, cipher and key exchange group\n");
   printf("  version      print the version\n\n");
   printf("Settings: %s\n", AGENT_INI_FILE);
 }
@@ -289,6 +293,10 @@ int main(int argc, char **argv)
     if(section.empty()) printf("No upload hooks in %s\n", cfg.uploads_dir.c_str());
     else fputs(section.c_str(), stdout);
     printf("Hook page: %s\n", HookPagePath(cfg).c_str());
+  }
+  else if(command == "selftest") {
+    std::string url = (optind + 1 < argc) ? argv[optind + 1] : "";
+    rv = TlsSelfTest(url, cfg.ca_file, cfg.verify_peer != 0);
   }
   else if(command == "vercmp" && optind + 2 < argc) {
     // vercmp A B: how the CSAF scan compares package versions

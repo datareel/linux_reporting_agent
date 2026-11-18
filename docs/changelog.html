@@ -23,11 +23,19 @@
 </header>
 <div class="layout">
   <nav class="sidebar" aria-label="Documentation">
-    <h4>Get started</h4><a href="index.html">Overview</a><a href="install.html">Install the agent</a><a href="server.html">Set up the report server</a><h4>Using the agent</h4><a href="approve.html">Approve hosts</a><a href="configuration.html">Configuration</a><a href="reports.html">Reports and DRSM</a><a href="vulnerabilities.html">Vulnerability scans</a><a href="hooks.html">Hooks</a><h4>Reference</h4><a href="security.html">Security</a><a href="building.html">Build from source</a><a href="troubleshooting.html">Troubleshooting</a><a href="changelog.html" class="active" aria-current="page">What's new</a><div class="toc"><a href="#v112">Release 1.1.2</a><a href="#v111">Release 1.1.1</a><a href="#v11">Release 1.1</a><a href="#v10b2">Release 1.0 beta 2</a><a href="#v10b1">Release 1.0 beta 1</a></div><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
+    <h4>Get started</h4><a href="index.html">Overview</a><a href="install.html">Install the agent</a><a href="server.html">Set up the report server</a><h4>Using the agent</h4><a href="approve.html">Approve hosts</a><a href="configuration.html">Configuration</a><a href="reports.html">Reports and DRSM</a><a href="vulnerabilities.html">Vulnerability scans</a><a href="hooks.html">Hooks</a><h4>Reference</h4><a href="security.html">Security</a><a href="building.html">Build from source</a><a href="troubleshooting.html">Troubleshooting</a><a href="changelog.html" class="active" aria-current="page">What's new</a><div class="toc"><a href="#v113">Release 1.1.3</a><a href="#v112">Release 1.1.2</a><a href="#v111">Release 1.1.1</a><a href="#v11">Release 1.1</a><a href="#v10b2">Release 1.0 beta 2</a><a href="#v10b1">Release 1.0 beta 1</a></div><h4>Links</h4><a href="https://datareel.com/downloads/linux_reporting_agent/">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>
   </nav>
   <main class="content" id="main">
 <h1>What's new</h1>
-<p class="lead">Release 1.1.2 fixes the advisory severity of RHEL 10 scans. Release 1.1.1 lets a scan run by hand update the dashboard. Release 1.1 is the first stable release of the DataReel Reporting Agent for Linux. It has everything from the two 1.0 betas: release 1.0 beta 2 added report hooks and hook uploads, and release 1.0 beta 1 was the first release.</p>
+<p class="lead">Release 1.1.3 makes OpenSSL 3.5 the oldest OpenSSL on every release, RHEL 8 included. Release 1.1.2 fixes the advisory severity of RHEL 10 scans. Release 1.1.1 lets a scan run by hand update the dashboard. Release 1.1 is the first stable release of the DataReel Reporting Agent for Linux. It has everything from the two 1.0 betas: release 1.0 beta 2 added report hooks and hook uploads, and release 1.0 beta 1 was the first release.</p>
+
+<h2 id="v113">Release 1.1.3 <span class="badge new">November 2026</span></h2>
+<ul>
+  <li><strong>OpenSSL 3.5 on RHEL 8:</strong> the RHEL 8 RPM links EPEL 8's <code>openssl3</code> (3.5) and a static libcurl 8.23.0 built against it, instead of RHEL 8's OpenSSL 1.1.1k. It needs <code>openssl3-libs</code> from EPEL 8. The RHEL 9 and 10 RPMs need <code>openssl-libs</code> 3.5 or later.</li>
+  <li><strong>TLS 1.2 or later</strong> for every connection, whatever the host's crypto policy allows.</li>
+  <li><strong><code>drra selftest [URL]</code>:</strong> the OpenSSL and libcurl in use and, with a URL, the TLS version, cipher and key exchange group of a test connection.</li>
+  <li>The RPM build fails unless <code>drra</code> and every library it loads use OpenSSL 3.5 or later (<code>tools/check_openssl.sh</code>, <code>make check-openssl</code>).</li>
+</ul>
 
 <h2 id="v112">Release 1.1.2 <span class="badge new">November 2026</span></h2>
 <ul>
@@ -64,6 +72,6 @@
 <nav class="pager" aria-label="Previous and next page"><a class="card prev" href="troubleshooting.html"><small>Previous</small>Troubleshooting</a></nav>
   </main>
 </div>
-<footer class="foot">DataReel Reporting Agent for Linux 1.1.2 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+<footer class="foot">DataReel Reporting Agent for Linux 1.1.3 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
 </body>
 </html>

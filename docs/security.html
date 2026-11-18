@@ -39,7 +39,7 @@
 <p>Each upload carries the report's SHA-256 hash (and the hash of each HTML report or hook file), the host name, a time stamp and a nonce, signed with RSA PKCS#1 v1.5 and SHA-256. The server checks the signature against the registered certificate, refuses agents that are not approved, refuses a time stamp more than <code>max_clock_skew_seconds</code> (300) from its clock, and refuses a nonce it has seen, so a captured upload cannot be sent again.</p>
 
 <h2 id="tls">TLS</h2>
-<p>Uploads use HTTPS through libcurl and OpenSSL with certificate and host name checks against the system trust store, or <code>ca_file</code> for a private CA. <code>verify_peer=0</code> and <code>use_https=0</code> exist for test servers only.</p>
+<p>Uploads use HTTPS through libcurl and OpenSSL 3.5 or later, TLS 1.2 or 1.3, with certificate and host name checks against the system trust store, or <code>ca_file</code> for a private CA. Other TLS settings (ciphers, key exchange groups) come from OpenSSL and the host's crypto policy. <code>verify_peer=0</code> and <code>use_https=0</code> exist for test servers only.</p>
 
 <h2 id="service">The service</h2>
 <p>The agent runs as root to read the package database, SELinux, firewalld and sshd settings and the DMI serial number. The systemd unit makes <code>/usr</code>, <code>/boot</code> and <code>/etc</code> read only, home folders read only, <code>/tmp</code> private, and sets <code>NoNewPrivileges</code>, kernel tunable and module protection, at low CPU and I/O priority. Files the agent writes are private to root. Report hooks run only from root owned, not group or world writable files, and can run as another user.</p>
@@ -61,6 +61,6 @@
 <nav class="pager" aria-label="Previous and next page"><a class="card prev" href="hooks.html"><small>Previous</small>Hooks</a><a class="card next" href="building.html"><small>Next</small>Build from source</a></nav>
   </main>
 </div>
-<footer class="foot">DataReel Reporting Agent for Linux 1.1.2 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
+<footer class="foot">DataReel Reporting Agent for Linux 1.1.3 &middot; GNU General Public License v3 &middot; <a href="https://datareel.com/info_linux_reporting_agent.php">datareel.com</a></footer>
 </body>
 </html>

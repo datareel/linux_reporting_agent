@@ -6,7 +6,7 @@ import os, sys
 OUT = sys.argv[1]
 DL = "https://datareel.com/downloads/linux_reporting_agent/"
 DEMO = ""
-VERSION = "1.1.2"
+VERSION = "1.1.3"
 
 ICON_MENU = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>'
 ICON_DEMO = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>'
@@ -223,6 +223,7 @@ page("install.html", "Install the agent",
 <h2 id="needs">What you need</h2>
 <ul>
   <li>RHEL 8, 9 or 10, x86_64, with systemd.</li>
+  <li>OpenSSL 3.5 or later. RHEL 9 and 10 have it (<code>dnf update openssl-libs</code> on older minor releases). On RHEL 8 the RPM needs <code>openssl3-libs</code> from EPEL 8: <code>dnf install epel-release</code> (or <code>https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm</code>) first.</li>
   <li>A report server with the PHP pages, see <a href="server.html">Set up the report server</a>, and its enrollment token if you use one.</li>
   <li>Outgoing HTTPS (port 443) to the report server. Nothing needs to connect to the host.</li>
   <li>For vulnerability scans on RHEL 8 and 9: <code>openscap-scanner</code>. For compliance scans: <code>scap-security-guide</code>.</li>
@@ -231,10 +232,10 @@ page("install.html", "Install the agent",
 
 <h2 id="rpm">Install the RPM</h2>
 <p>Download the RPM for your release from the <a href="https://datareel.com/downloads/linux_reporting_agent/">downloads page</a> (<code>el8</code>, <code>el9</code> or <code>el10</code>) and check it against its <code>.sha256sum</code> file:</p>
-""" + code([("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1.2-1.el9.x86_64.rpm"),
-            ("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1.2-1.el9.x86_64.rpm.sha256sum"),
-            ("$", "sha256sum -c linux_reporting_agent-1.1.2-1.el9.x86_64.rpm.sha256sum"),
-            ("#", "dnf install ./linux_reporting_agent-1.1.2-1.el9.x86_64.rpm"),
+""" + code([("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1.3-1.el9.x86_64.rpm"),
+            ("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1.3-1.el9.x86_64.rpm.sha256sum"),
+            ("$", "sha256sum -c linux_reporting_agent-1.1.3-1.el9.x86_64.rpm.sha256sum"),
+            ("#", "dnf install ./linux_reporting_agent-1.1.3-1.el9.x86_64.rpm"),
             ("#", "dnf install openscap-scanner          # RHEL 8 and 9 vulnerability scans")]) + """
 <p>The RPM installs the agent, its settings, the systemd unit and a logrotate file, and makes the <code>drra-upload</code> group. It does not start the service: set the server first.</p>
 
@@ -266,6 +267,7 @@ page("install.html", "Install the agent",
     ["<code>drra register</code>", "Registers the agent certificate with the report server"],
     ["<code>drra fingerprint</code>", "Prints the agent key fingerprint to check on the admin page"],
     ["<code>drra config</code>", "Prints the settings in use"],
+    ["<code>drra selftest [URL]</code>", "Checks that OpenSSL is 3.5 or later and that libcurl uses it; with a URL, connects and prints the TLS version, cipher and key exchange group"],
     ["<code>drra version</code>", "Prints the version"],
 ]) + """
 <p><code>-c &lt;ini file&gt;</code> uses another settings file, for example to test against a development server.</p>
@@ -641,7 +643,7 @@ page("security.html", "Security",
 <p>Each upload carries the report's SHA-256 hash (and the hash of each HTML report or hook file), the host name, a time stamp and a nonce, signed with RSA PKCS#1 v1.5 and SHA-256. The server checks the signature against the registered certificate, refuses agents that are not approved, refuses a time stamp more than <code>max_clock_skew_seconds</code> (300) from its clock, and refuses a nonce it has seen, so a captured upload cannot be sent again.</p>
 
 <h2 id="tls">TLS</h2>
-<p>Uploads use HTTPS through libcurl and OpenSSL with certificate and host name checks against the system trust store, or <code>ca_file</code> for a private CA. <code>verify_peer=0</code> and <code>use_https=0</code> exist for test servers only.</p>
+<p>Uploads use HTTPS through libcurl and OpenSSL 3.5 or later, TLS 1.2 or 1.3, with certificate and host name checks against the system trust store, or <code>ca_file</code> for a private CA. Other TLS settings (ciphers, key exchange groups) come from OpenSSL and the host's crypto policy. <code>verify_peer=0</code> and <code>use_https=0</code> exist for test servers only.</p>
 
 <h2 id="service">The service</h2>
 <p>The agent runs as root to read the package database, SELinux, firewalld and sshd settings and the DMI serial number. The systemd unit makes <code>/usr</code>, <code>/boot</code> and <code>/etc</code> read only, home folders read only, <code>/tmp</code> private, and sets <code>NoNewPrivileges</code>, kernel tunable and module protection, at low CPU and I/O priority. Files the agent writes are private to root. Report hooks run only from root owned, not group or world writable files, and can run as another user.</p>
@@ -668,22 +670,24 @@ page("building.html", "Build from source",
      [("needs", "What you need"), ("make", "Build with make"), ("rpms", "Build the RPMs"), ("tests", "Tests"), ("files", "Source files")],
      """
 <h1>Build from source</h1>
-<p class="lead">The agent is plain C++17 with OpenSSL, libcurl, libxml2, bzip2 and zlib from the distribution, so it builds the same on RHEL 8, 9 and 10.</p>
+<p class="lead">The agent is plain C++17 with OpenSSL, libcurl, libxml2, bzip2 and zlib. Release builds need OpenSSL 3.5 or later: RHEL 9 and 10 have it, and on RHEL 8 the RPM uses EPEL's <code>openssl3</code> with a static libcurl built against it.</p>
 
 <h2 id="needs">What you need</h2>
 """ + code([("#", "dnf install gcc-c++ make openssl-devel libcurl-devel libxml2-devel bzip2-devel zlib-devel")]) + """
+<p>On RHEL 8, <code>openssl-devel</code> and <code>libcurl-devel</code> are OpenSSL 1.1.1: build the RPM (below) instead, or see the <code>%build</code> section of the spec file for the <code>SSL_CFLAGS</code>, <code>SSL_LIBS</code>, <code>CURL_CFLAGS</code> and <code>CURL_LIBS</code> settings.</p>
 
 <h2 id="make">Build with make</h2>
-""" + code([("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1.2.tar.gz"),
-            ("$", "tar xzf linux_reporting_agent-1.1.2.tar.gz && cd linux_reporting_agent-1.1.2"),
+""" + code([("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1.3.tar.gz"),
+            ("$", "tar xzf linux_reporting_agent-1.1.3.tar.gz && cd linux_reporting_agent-1.1.3"),
             ("$", "make"),
             ("#", "make install            # /usr/sbin/drra, /etc/drra, the systemd unit"),
             ("#", "systemctl daemon-reload")]) + """
+<p><code>make check-openssl</code> fails unless <code>drra</code> and every library it loads use OpenSSL 3.5 or later, and runs <code>drra selftest</code>. <code>drra selftest https://your.server/</code> also prints the TLS version, cipher and key exchange group of a connection.</p>
 <p><code>make install</code> takes <code>DESTDIR</code>, <code>PREFIX</code>, <code>SYSCONFDIR</code> and <code>UNITDIR</code>. It overwrites <code>/etc/drra/drra.ini</code>: keep a copy of yours.</p>
 
 <h2 id="rpms">Build the RPMs</h2>
 """ + code([("$", "tools/build_rpms.sh")]) + """
-<p>Builds the source tarball and the RHEL 8, 9 and 10 RPMs in UBI containers with podman, into <code>output/</code>, with a <code>.sha256sum</code> file. The spec file is <code>rpm/linux_reporting_agent.spec</code>.</p>
+<p>Builds the source tarball and the RHEL 8, 9 and 10 RPMs in UBI containers with podman, into <code>output/</code>, with a <code>.sha256sum</code> file. The spec file is <code>rpm/linux_reporting_agent.spec</code>. The RHEL 8 build adds EPEL 8 for <code>openssl3-devel</code> and builds libcurl from the curl tarball, which it downloads once and checks against <code>tools/curl.sha256</code>. Every RPM build runs <code>tools/check_openssl.sh</code> and fails on an OpenSSL older than 3.5.</p>
 
 <h2 id="tests">Tests</h2>
 """ + code([("$", "tests/drsm_test.sh           # DRSM plugins and pages against a DRSM checkout"),
@@ -698,7 +702,8 @@ page("building.html", "Build from source",
     ["<code>src/agent_auth.cpp</code>", "Key, certificate, signing, registration and uploads (OpenSSL, libcurl)"],
     ["<code>src/deliver.cpp</code>", "HTTPS, CIFS and SCP delivery"],
     ["<code>src/hooks.cpp</code>, <code>uploads.cpp</code>", "Report hooks and hook uploads"],
-    ["<code>src/compat.h</code>", "RHEL 8 OpenSSL 1.1 and curl 7.61 support"],
+    ["<code>src/compat.h</code>", "Older OpenSSL and libcurl support, TLS 1.2 minimum"],
+    ["<code>src/tlscheck.cpp</code>", "<code>drra selftest</code>: OpenSSL and libcurl in use, test connection"],
     ["<code>drra.ini</code>, <code>systemd/</code>, <code>rpm/</code>", "Default settings, systemd unit and logrotate file, RPM spec"],
     ["<code>php/</code>", "Report server pages, <code>install_server.sh</code>, <code>server.ini.example</code>"],
     ["<code>drsm/</code>", "DRSM collector, linux plugins and Vulnerabilities page, with <code>install.sh</code>"],
@@ -746,10 +751,18 @@ page("troubleshooting.html", "Troubleshooting",
 # ---------------------------------------------------------------- changelog
 page("changelog.html", "What's new",
      "DataReel Reporting Agent for Linux release history.",
-     [("v112", "Release 1.1.2"), ("v111", "Release 1.1.1"), ("v11", "Release 1.1"), ("v10b2", "Release 1.0 beta 2"), ("v10b1", "Release 1.0 beta 1")],
+     [("v113", "Release 1.1.3"), ("v112", "Release 1.1.2"), ("v111", "Release 1.1.1"), ("v11", "Release 1.1"), ("v10b2", "Release 1.0 beta 2"), ("v10b1", "Release 1.0 beta 1")],
      """
 <h1>What's new</h1>
-<p class="lead">Release 1.1.2 fixes the advisory severity of RHEL 10 scans. Release 1.1.1 lets a scan run by hand update the dashboard. Release 1.1 is the first stable release of the DataReel Reporting Agent for Linux. It has everything from the two 1.0 betas: release 1.0 beta 2 added report hooks and hook uploads, and release 1.0 beta 1 was the first release.</p>
+<p class="lead">Release 1.1.3 makes OpenSSL 3.5 the oldest OpenSSL on every release, RHEL 8 included. Release 1.1.2 fixes the advisory severity of RHEL 10 scans. Release 1.1.1 lets a scan run by hand update the dashboard. Release 1.1 is the first stable release of the DataReel Reporting Agent for Linux. It has everything from the two 1.0 betas: release 1.0 beta 2 added report hooks and hook uploads, and release 1.0 beta 1 was the first release.</p>
+
+<h2 id="v113">Release 1.1.3 <span class="badge new">November 2026</span></h2>
+<ul>
+  <li><strong>OpenSSL 3.5 on RHEL 8:</strong> the RHEL 8 RPM links EPEL 8's <code>openssl3</code> (3.5) and a static libcurl 8.23.0 built against it, instead of RHEL 8's OpenSSL 1.1.1k. It needs <code>openssl3-libs</code> from EPEL 8. The RHEL 9 and 10 RPMs need <code>openssl-libs</code> 3.5 or later.</li>
+  <li><strong>TLS 1.2 or later</strong> for every connection, whatever the host's crypto policy allows.</li>
+  <li><strong><code>drra selftest [URL]</code>:</strong> the OpenSSL and libcurl in use and, with a URL, the TLS version, cipher and key exchange group of a test connection.</li>
+  <li>The RPM build fails unless <code>drra</code> and every library it loads use OpenSSL 3.5 or later (<code>tools/check_openssl.sh</code>, <code>make check-openssl</code>).</li>
+</ul>
 
 <h2 id="v112">Release 1.1.2 <span class="badge new">November 2026</span></h2>
 <ul>
