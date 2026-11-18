@@ -13,6 +13,7 @@
 # host names and domains that must never be published. The list is kept
 # outside the repository so the names in it are never published either.
 # The build fails if the list is missing or anything matches.
+# SCAN_ONLY=1 only scans what is already in output/ for this version.
 #
 # Builds from the committed tree (git archive HEAD), so commit first.
 #
@@ -44,6 +45,7 @@ if [ ! -s "${PATTERNS}" ]; then
 fi
 
 TARBALL="${OUT}/${NAME}-${VERSION}.tar.gz"
+if [ "${SCAN_ONLY:-0}" != 1 ]; then
 git archive --format=tar.gz --prefix="${NAME}-${VERSION}/" -o "${TARBALL}" HEAD
 echo "Source: ${TARBALL}"
 # The utils asset (drra-utils-<version>.tar.gz), published with the RPMs
@@ -97,6 +99,7 @@ rpmbuild -bb --quiet --define \"_smp_mflags -j${JOBS:-4}\" /spec/${NAME}.spec
 cp ~/rpmbuild/RPMS/*/${NAME}-*.rpm /out/
 "
 done
+fi
 # Release blocklist scan of what was built
 scan_failed=0
 scan_text() {
