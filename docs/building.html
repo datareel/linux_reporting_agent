@@ -27,11 +27,11 @@
   </nav>
   <main class="content" id="main">
 <h1>Build from source</h1>
-<p class="lead">The agent is plain C++17 with OpenSSL, libcurl, libxml2, bzip2 and zlib. Release builds need OpenSSL 3.5 or later: RHEL 9 and 10 have it, and on RHEL 8 the RPM uses EPEL's <code>openssl3</code> with a static libcurl built against it.</p>
+<p class="lead">The agent is plain C++17 with OpenSSL, libcurl, libxml2, bzip2 and zlib. RHEL 9 and 10 builds use the system OpenSSL, 3.5 or later. The RHEL 8 RPM has a standard build with OpenSSL 3.5 and libcurl built in and a FIPS build on RHEL 8's own OpenSSL 1.1.1 (see <a href="install.html#rhel8">Install</a>).</p>
 
 <h2 id="needs">What you need</h2>
 <pre><code><span class="r"># </span>dnf install gcc-c++ make openssl-devel libcurl-devel libxml2-devel bzip2-devel zlib-devel</code></pre>
-<p>On RHEL 8, <code>openssl-devel</code> and <code>libcurl-devel</code> are OpenSSL 1.1.1: build the RPM (below) instead, or see the <code>%build</code> section of the spec file for the <code>SSL_CFLAGS</code>, <code>SSL_LIBS</code>, <code>CURL_CFLAGS</code> and <code>CURL_LIBS</code> settings.</p>
+<p>On RHEL 8 a plain <code>make</code> gives the FIPS style build on OpenSSL 1.1.1 (<code>make DEFINES=-DDRRA_FIPS_BUILD</code> marks it as one). For the standard build, build the RPM (below), or see the <code>%build</code> section of the spec file for <code>DEFINES</code>, <code>SSL_CFLAGS</code>, <code>SSL_LIBS</code>, <code>CURL_CFLAGS</code> and <code>CURL_LIBS</code>.</p>
 
 <h2 id="make">Build with make</h2>
 <pre><code><span class="p">$ </span>wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1.3.tar.gz
@@ -39,12 +39,12 @@
 <span class="p">$ </span>make
 <span class="r"># </span>make install            # /usr/sbin/drra, /etc/drra, the systemd unit
 <span class="r"># </span>systemctl daemon-reload</code></pre>
-<p><code>make check-openssl</code> fails unless <code>drra</code> and every library it loads use OpenSSL 3.5 or later, and runs <code>drra selftest</code>. <code>drra selftest https://your.server/</code> also prints the TLS version, cipher and key exchange group of a connection.</p>
+<p><code>make check-openssl</code> fails unless <code>drra</code> and every library it loads use OpenSSL 3.5 or later (<code>tools/check_openssl.sh --fips</code> checks a FIPS build for RHEL 8's OpenSSL 1.1.1), and runs <code>drra selftest</code>. <code>drra selftest https://your.server/</code> also prints the TLS version, cipher and key exchange group of a connection.</p>
 <p><code>make install</code> takes <code>DESTDIR</code>, <code>PREFIX</code>, <code>SYSCONFDIR</code> and <code>UNITDIR</code>. It overwrites <code>/etc/drra/drra.ini</code>: keep a copy of yours.</p>
 
 <h2 id="rpms">Build the RPMs</h2>
 <pre><code><span class="p">$ </span>tools/build_rpms.sh</code></pre>
-<p>Builds the source tarball and the RHEL 8, 9 and 10 RPMs in UBI containers with podman, into <code>output/</code>, with a <code>.sha256sum</code> file. The spec file is <code>rpm/linux_reporting_agent.spec</code>. The RHEL 8 build adds EPEL 8 for <code>openssl3-devel</code> and builds libcurl from the curl tarball, which it downloads once and checks against <code>tools/curl.sha256</code>. Every RPM build runs <code>tools/check_openssl.sh</code> and fails on an OpenSSL older than 3.5.</p>
+<p>Builds the source tarball and the RHEL 8, 9 and 10 RPMs in UBI containers with podman, into <code>output/</code>, with a <code>.sha256sum</code> file. The spec file is <code>rpm/linux_reporting_agent.spec</code>. The RHEL 8 build builds OpenSSL and libcurl for the standard build from their release tarballs, which it downloads once and checks against <code>tools/bundled.sha256</code>, and the FIPS build on the system libraries. Every RPM build runs <code>tools/check_openssl.sh</code> on each binary and fails if one has the wrong OpenSSL.</p>
 
 <h2 id="tests">Tests</h2>
 <pre><code><span class="p">$ </span>tests/drsm_test.sh           # DRSM plugins and pages against a DRSM checkout

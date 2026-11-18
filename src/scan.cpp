@@ -119,7 +119,7 @@ static int DownloadIfChanged(const AgentConfig &cfg, const std::string &url, con
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
   AgentCurlProtocols(curl, true);
-  AgentCurlTlsMin(curl);
+  AgentCurlTls(curl, cfg.tls_groups);
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, 600L);
   curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
   curl_easy_setopt(curl, CURLOPT_FILETIME, 1L);

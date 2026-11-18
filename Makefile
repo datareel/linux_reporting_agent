@@ -16,8 +16,10 @@ SSL_CFLAGS  ?=
 SSL_LIBS    ?= -lssl -lcrypto
 CURL_CFLAGS ?=
 CURL_LIBS   ?= -lcurl
+# -DDRRA_BUNDLED_OPENSSL or -DDRRA_FIPS_BUILD for the RHEL 8 builds (src/common.h)
+DEFINES     ?=
 # CURL_CFLAGS and SSL_CFLAGS come first so their headers win over /usr/include
-AGENT_CXXFLAGS = -std=c++17 $(CURL_CFLAGS) $(SSL_CFLAGS) $(shell pkg-config --cflags libxml-2.0)
+AGENT_CXXFLAGS = -std=c++17 $(DEFINES) $(CURL_CFLAGS) $(SSL_CFLAGS) $(shell pkg-config --cflags libxml-2.0)
 LIBS      = $(CURL_LIBS) $(SSL_LIBS) -lbz2 -lz $(shell pkg-config --libs libxml-2.0)
 MIN_OPENSSL ?= 3.5
 

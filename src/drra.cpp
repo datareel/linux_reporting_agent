@@ -191,6 +191,20 @@ int main(int argc, char **argv)
   LoadAgentConfig(cfg, ini_path, output);
   int rv = 0;
 
+#if defined(DRRA_BUNDLED_OPENSSL)
+  // The standard build's own OpenSSL is not FIPS validated: in FIPS mode
+  // only the FIPS build (RHEL 8's OpenSSL) may sign and send anything
+  if(HostFipsEnabled() && command != "config" && command != "selftest" && command != "vercmp") {
+    std::string msg = "ERROR - FIPS mode is on (/proc/sys/crypto/fips_enabled = 1). This drra is the standard "
+      "build with its own OpenSSL 3.5, which is not FIPS validated, so it does not run in FIPS mode. "
+      "Switch to the FIPS build: alternatives --set drra " AGENT_FIPS_BINARY;
+    LogMessage(cfg, msg);
+    xmlCleanupParser();
+    curl_global_cleanup();
+    return AGENT_EXIT_FIPS_REFUSED;
+  }
+#endif
+
   if(command == "run") {
     rv = RunService(ini_path);
   }
@@ -296,7 +310,7 @@ int main(int argc, char **argv)
   }
   else if(command == "selftest") {
     std::string url = (optind + 1 < argc) ? argv[optind + 1] : "";
-    rv = TlsSelfTest(url, cfg.ca_file, cfg.verify_peer != 0);
+    rv = TlsSelfTest(url, cfg);
   }
   else if(command == "vercmp" && optind + 2 < argc) {
     // vercmp A B: how the CSAF scan compares package versions

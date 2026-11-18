@@ -11,6 +11,8 @@ ExecStart=/usr/sbin/drra run
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=60
+# 78: the standard RHEL 8 build refuses to run in FIPS mode (see the log)
+RestartPreventExitStatus=78
 # Scans and dnf run at low priority
 Nice=10
 IOSchedulingClass=idle

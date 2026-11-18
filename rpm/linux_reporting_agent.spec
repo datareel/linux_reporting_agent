@@ -3,10 +3,18 @@
 # linux_reporting_agent-%{agent_version}.tar.gz
 
 %global agent_version 1.1.3
-# RHEL 8: the system OpenSSL is 1.1.1k and libcurl uses it, so the agent
-# links EPEL's openssl3 (3.5) and a static libcurl built against it.
-# tools/build_rpms.sh puts the curl tarball (checked against tools/curl.sha256)
-# next to the agent tarball.
+# RHEL 8 has two builds of drra in one RPM, chosen with alternatives:
+#   drra-standard: OpenSSL 3.5 and libcurl (versions below) built in
+#     (static), hybrid post-quantum key exchange (X25519MLKEM768, then
+#     X25519 and P-256). Its OpenSSL is not FIPS validated: it refuses to
+#     run in FIPS mode.
+#   drra-fips: RHEL 8's own OpenSSL 1.1.1 and libcurl, so crypto-policies
+#     and FIPS mode apply. No ML-KEM.
+# Installing picks drra-fips when /proc/sys/crypto/fips_enabled is 1.
+# tools/build_rpms.sh puts the OpenSSL and curl tarballs (checked against
+# tools/bundled.sha256) next to the agent tarball.
+# RHEL 9 and 10 use the system OpenSSL (3.5 or later) and libcurl.
+%global openssl_version 3.5.9
 %global curl_version 8.23.0
 %global min_openssl 3.5
 
@@ -19,19 +27,24 @@ URL:            https://datareel.com/
 Source0:        %{name}-%{agent_version}.tar.gz
 %if 0%{?rhel} == 8
 Source1:        https://curl.se/download/curl-%{curl_version}.tar.gz
+Source2:        https://github.com/openssl/openssl/releases/download/openssl-%{openssl_version}/openssl-%{openssl_version}.tar.gz
 %endif
 
 BuildRequires:  gcc-c++ make pkgconf-pkg-config binutils
 BuildRequires:  libxml2-devel bzip2-devel zlib-devel
 BuildRequires:  systemd-rpm-macros
+BuildRequires:  openssl-devel libcurl-devel
 %if 0%{?rhel} == 8
-# openssl3 is in EPEL 8; openssl-devel (1.1.1) must not be in the buildroot
-BuildRequires:  openssl3-devel >= %{min_openssl}
-BuildConflicts: openssl-devel < 1:3
-Requires:       openssl3-libs%{?_isa} >= %{min_openssl}
+# The bundled OpenSSL build
+BuildRequires:  perl-interpreter perl-IPC-Cmd perl-Data-Dumper perl-Time-Piece
+# drra-fips
+Requires:       openssl-libs%{?_isa} libcurl%{?_isa}
+Requires(posttrans): chkconfig
+Requires(preun): chkconfig
+Provides:       bundled(openssl) = %{openssl_version}
 Provides:       bundled(curl) = %{curl_version}
 %else
-BuildRequires:  openssl-devel >= 1:%{min_openssl} libcurl-devel
+BuildRequires:  openssl-devel >= 1:%{min_openssl}
 Requires:       openssl-libs%{?_isa} >= 1:%{min_openssl} libcurl
 %endif
 Requires(pre):  shadow-utils
@@ -55,41 +68,68 @@ Monitor (DRSM) reads the reports with its linux plugins.
 %prep
 %setup -q -n %{name}-%{agent_version}
 %if 0%{?rhel} == 8
-%setup -q -T -D -a 1 -n %{name}-%{agent_version}
+%setup -q -T -D -a 1 -a 2 -n %{name}-%{agent_version}
 %endif
 
 %build
 %if 0%{?rhel} == 8
-# Static libcurl with only HTTP and HTTPS, on openssl3, CA bundle of the system
-CURL_PREFIX=$PWD/curl-static
+B=$PWD/bundled
+# OpenSSL, static, providers built in. Its own settings folder
+# (/etc/drra/openssl, empty): RHEL 8's openssl.cnf and crypto-policies are
+# for OpenSSL 1.1.1 and the FIPS build.
+pushd openssl-%{openssl_version}
+./Configure linux-x86_64 --prefix=$B --libdir=lib --openssldir=/etc/drra/openssl \
+  no-shared no-module no-legacy no-engine no-tests no-docs no-apps no-ssl3 no-comp -fPIC
+make %{?_smp_mflags}
+make install_sw
+popd
+# libcurl, static, only HTTP and HTTPS, on that OpenSSL, the system CA bundle
 pushd curl-%{curl_version}
-./configure --prefix=$CURL_PREFIX --disable-shared --enable-static --with-pic \
-  CPPFLAGS="$(pkg-config --cflags openssl3)" LDFLAGS="$(pkg-config --libs-only-L openssl3)" \
-  --with-openssl --with-zlib --with-ca-bundle=/etc/pki/tls/certs/ca-bundle.crt --without-ca-path \
+./configure --prefix=$B --disable-shared --enable-static --with-pic \
+  --with-openssl=$B --with-zlib --with-ca-bundle=/etc/pki/tls/certs/ca-bundle.crt --without-ca-path \
   --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
   --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher \
   --disable-mqtt --disable-websockets --disable-ntlm --disable-manual --disable-docs \
   --without-libpsl --without-brotli --without-zstd --without-nghttp2 --without-nghttp3 \
-  --without-libidn2 --without-libssh2 --without-libssh --without-gssapi --without-libgsasl
+  --without-libidn2 --without-libssh2 --without-libssh --without-gssapi --without-libgsasl \
+  LDFLAGS="-L$B/lib" LIBS="-ldl -lpthread"
 make %{?_smp_mflags}
 make install
 popd
-make %{?_smp_mflags} CXXFLAGS="%{optflags}" LDFLAGS="%{build_ldflags}" \
-  SSL_CFLAGS="$(pkg-config --cflags openssl3)" SSL_LIBS="$(pkg-config --libs openssl3)" \
-  CURL_CFLAGS="-I$CURL_PREFIX/include" CURL_LIBS="$CURL_PREFIX/lib/libcurl.a -lz -lpthread"
+make %{?_smp_mflags} CXXFLAGS="%{optflags}" LDFLAGS="%{build_ldflags}" DEFINES=-DDRRA_BUNDLED_OPENSSL \
+  SSL_CFLAGS="-I$B/include" SSL_LIBS="$B/lib/libssl.a $B/lib/libcrypto.a -ldl -lpthread" \
+  CURL_CFLAGS="-I$B/include" CURL_LIBS="$B/lib/libcurl.a -lz"
+mv drra drra-standard
+make clean
+make %{?_smp_mflags} CXXFLAGS="%{optflags}" LDFLAGS="%{build_ldflags}" DEFINES=-DDRRA_FIPS_BUILD
+mv drra drra-fips
+cp -p drra-standard drra
 %else
 make %{?_smp_mflags} CXXFLAGS="%{optflags}" LDFLAGS="%{build_ldflags}"
 %endif
 
 %check
-# No RPM linked to an OpenSSL older than %{min_openssl}
+%if 0%{?rhel} == 8
+# Standard: OpenSSL 3.5 or later. FIPS: RHEL 8's libssl.so.1.1.
+tools/check_openssl.sh ./drra-standard %{min_openssl}
+tools/check_openssl.sh --fips ./drra-fips
+%else
+# No RPM linked to an OpenSSL older than 3.5
 tools/check_openssl.sh ./drra %{min_openssl}
+%endif
 
 %install
 make install DESTDIR=%{buildroot} UNITDIR=%{_unitdir}
 install -d -m 0755 %{buildroot}%{_docdir}/%{name}
 install -m 0644 README.md LICENSE %{buildroot}%{_docdir}/%{name}/
 cp -a php drsm %{buildroot}%{_docdir}/%{name}/
+%if 0%{?rhel} == 8
+# /usr/sbin/drra is an alternatives link to one of the two builds
+install -d -m 0755 %{buildroot}%{_libexecdir}/drra
+install -m 0755 drra-standard drra-fips %{buildroot}%{_libexecdir}/drra/
+rm -f %{buildroot}%{_sbindir}/drra
+touch %{buildroot}%{_sbindir}/drra
+%endif
 
 %pre
 # Members of drra-upload may queue reports from other tools (drra submit)
@@ -101,12 +141,42 @@ exit 0
 
 %preun
 %systemd_preun drra.service
+%if 0%{?rhel} == 8
+if [ $1 -eq 0 ]; then
+    %{_sbindir}/alternatives --remove drra %{_libexecdir}/drra/drra-standard
+    %{_sbindir}/alternatives --remove drra %{_libexecdir}/drra/drra-fips
+fi
+%endif
 
 %postun
 %systemd_postun_with_restart drra.service
 
+%if 0%{?rhel} == 8
+%posttrans
+# After an upgrade from 1.1.2 or older /usr/sbin/drra is still the old
+# binary (a plain file): the alternatives link replaces it
+if [ -f %{_sbindir}/drra ] && [ ! -L %{_sbindir}/drra ]; then
+    rm -f %{_sbindir}/drra
+fi
+%{_sbindir}/alternatives --install %{_sbindir}/drra drra %{_libexecdir}/drra/drra-standard 20
+%{_sbindir}/alternatives --install %{_sbindir}/drra drra %{_libexecdir}/drra/drra-fips 10
+# FIPS mode: the FIPS build (the standard build does not run in FIPS mode)
+if [ "$(cat /proc/sys/crypto/fips_enabled 2>/dev/null)" = "1" ]; then
+    %{_sbindir}/alternatives --set drra %{_libexecdir}/drra/drra-fips
+fi
+# A running service picks up the new link
+systemctl try-restart drra.service >/dev/null 2>&1 || :
+%endif
+
 %files
+%if 0%{?rhel} == 8
+%ghost %{_sbindir}/drra
+%dir %{_libexecdir}/drra
+%{_libexecdir}/drra/drra-standard
+%{_libexecdir}/drra/drra-fips
+%else
 %{_sbindir}/drra
+%endif
 %{_unitdir}/drra.service
 %dir %attr(0700,root,root) %{_sysconfdir}/drra
 %config(noreplace) %attr(0600,root,root) %{_sysconfdir}/drra/drra.ini
@@ -121,15 +191,21 @@ exit 0
 
 %changelog
 * Wed Nov 18 2026 DataReel Software Development - 1.1.3-1
-- OpenSSL 3.5 or later on every release: the RHEL 8 RPM links EPEL's
-  openssl3 (3.5) and a static libcurl %{curl_version} built against it
-  instead of RHEL 8's OpenSSL 1.1.1k; RHEL 9 and 10 RPMs require
-  openssl-libs 3.5 or later
+- RHEL 8: two builds in the RPM, /usr/sbin/drra is an alternatives link:
+  drra-standard has OpenSSL 3.5.9 and libcurl 8.23.0 built in, with hybrid
+  post-quantum key exchange (X25519MLKEM768, then X25519 and P-256), and
+  refuses to run in FIPS mode; drra-fips uses RHEL 8's OpenSSL 1.1.1 and
+  libcurl, so crypto-policies and FIPS mode apply. Installing picks
+  drra-fips when FIPS mode is on.
+- RHEL 9 and 10 RPMs require openssl-libs 3.5 or later
+- [https] tls_groups sets the TLS key exchange groups
 - TLS 1.2 is the oldest TLS version the agent uses, whatever the crypto policy
-- drra selftest [URL]: the OpenSSL and libcurl in use, and the TLS version,
-  cipher and key exchange group of a test connection
-- The RPM build fails unless drra and every library it loads use OpenSSL
-  3.5 or later (tools/check_openssl.sh, make check-openssl)
+- The log line of each upload and registration names the TLS version,
+  cipher and key exchange group
+- drra selftest [URL]: the build, OpenSSL, libcurl and FIPS mode, and the
+  TLS version, cipher and key exchange group of a test connection
+- The RPM build fails unless each binary uses the OpenSSL it must
+  (tools/check_openssl.sh, make check-openssl)
 
 * Sun Nov 01 2026 DataReel Software Development - 1.1.2-1
 - CSAF/VEX scans use Red Hat's advisory severity from dnf instead of the

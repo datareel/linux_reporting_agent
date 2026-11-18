@@ -39,6 +39,7 @@ void SetDefaultAgentConfig(AgentConfig &cfg)
   cfg.use_https = true;
   cfg.verify_peer = true;
   cfg.ca_file.clear();
+  cfg.tls_groups = AGENT_TLS_GROUPS_DEFAULT;
   cfg.https_timeout_seconds = 60;
 
   cfg.cifs_share.clear();
@@ -164,6 +165,7 @@ int LoadAgentConfig(AgentConfig &cfg, const std::string &ini_path, std::string &
       else if(key == "use_https") cfg.use_https = ParseBool(val, cfg.use_https);
       else if(key == "verify_peer") cfg.verify_peer = ParseBool(val, cfg.verify_peer);
       else if(key == "ca_file") cfg.ca_file = val;
+      else if(key == "tls_groups") cfg.tls_groups = val;
       else if(key == "timeout_seconds") cfg.https_timeout_seconds = ParseInt(val, cfg.https_timeout_seconds, 5);
     }
     else if(section == "cifs") {
@@ -556,4 +558,14 @@ void LogMessage(const AgentConfig &cfg, const std::string &message)
   }
   fputs(text.c_str(), stderr);
   fputc('\n', stderr);
+}
+
+// The kernel's FIPS mode switch (fips=1 on the kernel command line)
+bool HostFipsEnabled()
+{
+  FILE *fp = fopen("/proc/sys/crypto/fips_enabled", "r");
+  if(!fp) return false;
+  int c = fgetc(fp);
+  fclose(fp);
+  return c == '1';
 }

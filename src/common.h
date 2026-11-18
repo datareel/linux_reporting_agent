@@ -8,6 +8,27 @@
 #define AGENT_NAME "DataReel Reporting Agent for Linux"
 #define AGENT_VERSION "1.1.3"
 #define AGENT_INI_FILE "/etc/drra/drra.ini"
+
+// Build variants (set by the RPM spec on RHEL 8):
+//   DRRA_BUNDLED_OPENSSL  standard: static OpenSSL 3.5 and libcurl built in,
+//                         hybrid post-quantum key exchange, no FIPS mode
+//   DRRA_FIPS_BUILD       FIPS: RHEL 8's own OpenSSL 1.1.1 and libcurl, so
+//                         crypto-policies and FIPS mode apply
+//   neither               the system OpenSSL and libcurl (RHEL 9 and 10)
+#if defined(DRRA_BUNDLED_OPENSSL)
+#define AGENT_BUILD_VARIANT "standard (bundled OpenSSL)"
+// Hybrid ML-KEM first, then classic groups for servers without it
+#define AGENT_TLS_GROUPS_DEFAULT "X25519MLKEM768:X25519:P-256"
+#elif defined(DRRA_FIPS_BUILD)
+#define AGENT_BUILD_VARIANT "FIPS (system OpenSSL)"
+#define AGENT_TLS_GROUPS_DEFAULT ""
+#else
+#define AGENT_BUILD_VARIANT "system OpenSSL"
+#define AGENT_TLS_GROUPS_DEFAULT ""
+#endif
+// Exit status when the standard build refuses to run in FIPS mode; the
+// systemd unit does not restart on it (RestartPreventExitStatus)
+#define AGENT_EXIT_FIPS_REFUSED 78
 #define AGENT_REPORT_SUFFIX "_linux_report_agent.txt"
 #define AGENT_SCAP_SUFFIX "_linux_scap_report.html"
 
@@ -26,6 +47,7 @@ struct AgentConfig {
   bool use_https;                 // use_https
   bool verify_peer;               // verify_peer: check the server certificate
   std::string ca_file;            // ca_file: CA bundle for a private CA
+  std::string tls_groups;         // tls_groups: TLS key exchange groups, empty = OpenSSL/crypto policy
   int https_timeout_seconds;      // timeout_seconds
   // [cifs]
   std::string cifs_share;         // share: //server/share
@@ -121,5 +143,6 @@ int RunCommand(const std::vector<std::string> &argv, int timeout_seconds, Comman
 std::string FindProgram(const std::string &name);
 
 void LogMessage(const AgentConfig &cfg, const std::string &message);
+bool HostFipsEnabled();
 
 #endif

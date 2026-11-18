@@ -8,10 +8,11 @@
 #
 # Builds from the committed tree (git archive HEAD), so commit first.
 #
-# Every RPM links OpenSSL 3.5 or later (the RPM %check runs
-# tools/check_openssl.sh). RHEL 8 builds use EPEL 8's openssl3 and a static
-# libcurl built from the curl tarball, which is downloaded once into
-# output/ and must match tools/curl.sha256.
+# The RPM %check runs tools/check_openssl.sh: RHEL 9/10 and the RHEL 8
+# standard build use OpenSSL 3.5 or later, the RHEL 8 FIPS build RHEL 8's
+# OpenSSL 1.1.1. The RHEL 8 standard build has OpenSSL and libcurl built
+# in from tarballs downloaded once into output/ and checked against
+# tools/bundled.sha256.
 
 set -e
 TOP="$(cd "$(dirname "$0")/.." && pwd)"
@@ -31,30 +32,37 @@ echo "Source: ${TARBALL}"
 # The utils asset (drra-utils-<version>.tar.gz), published with the RPMs
 "${TOP}/tools/build_utils.sh"
 
+# RHEL 8: the OpenSSL and curl tarballs built into drra-standard,
+# downloaded once into output/ and checked against tools/bundled.sha256
+OPENSSL_VERSION=$(sed -n 's/^%global openssl_version //p' rpm/${NAME}.spec)
 CURL_VERSION=$(sed -n 's/^%global curl_version //p' rpm/${NAME}.spec)
-CURL_TARBALL="curl-${CURL_VERSION}.tar.gz"
+BUNDLED="openssl-${OPENSSL_VERSION}.tar.gz curl-${CURL_VERSION}.tar.gz"
 case " ${RELEASES} " in
     *" 8 "*)
-	if [ ! -f "${OUT}/${CURL_TARBALL}" ]; then
-	    curl -sSfL -o "${OUT}/${CURL_TARBALL}.download" "https://curl.se/download/${CURL_TARBALL}"
-	    mv "${OUT}/${CURL_TARBALL}.download" "${OUT}/${CURL_TARBALL}"
-	fi
-	if ! (cd "${OUT}" && grep " ${CURL_TARBALL}\$" "${TOP}/tools/curl.sha256" | sha256sum -c --quiet -); then
-	    echo "ERROR - ${OUT}/${CURL_TARBALL} does not match tools/curl.sha256"
-	    exit 1
-	fi
+	for t in ${BUNDLED}; do
+	    case "${t}" in
+		openssl-*) url="https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/${t}" ;;
+		curl-*) url="https://curl.se/download/${t}" ;;
+	    esac
+	    if [ ! -f "${OUT}/${t}" ]; then
+		curl -sSfL -o "${OUT}/${t}.download" "${url}"
+		mv "${OUT}/${t}.download" "${OUT}/${t}"
+	    fi
+	    if ! (cd "${OUT}" && grep " ${t}\$" "${TOP}/tools/bundled.sha256" | sha256sum -c --quiet - && grep -q " ${t}\$" "${TOP}/tools/bundled.sha256"); then
+		echo "ERROR - ${OUT}/${t} does not match tools/bundled.sha256"
+		exit 1
+	    fi
+	done
 	;;
 esac
 
 for rel in ${RELEASES}; do
     echo "Building RHEL ${rel} RPM"
     if [ "${rel}" = 8 ]; then
-	# EPEL 8 has openssl3 (3.5); RHEL 8's openssl-devel is 1.1.1k
-	PRE="dnf -q -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm > /tmp/dnf.log 2>&1 || { tail -20 /tmp/dnf.log; exit 1; }"
-	DEVEL="openssl3-devel"
-	EXTRA="cp /out/${CURL_TARBALL} ~/rpmbuild/SOURCES/"
+	# drra-standard builds OpenSSL (perl) and curl; drra-fips uses the system ones
+	DEVEL="openssl-devel libcurl-devel perl-interpreter perl-IPC-Cmd perl-Data-Dumper perl-Time-Piece"
+	EXTRA="for t in ${BUNDLED}; do cp /out/\$t ~/rpmbuild/SOURCES/; done"
     else
-	PRE=":"
 	DEVEL="openssl-devel libcurl-devel"
 	EXTRA=":"
     fi
@@ -63,7 +71,6 @@ for rel in ${RELEASES}; do
 	-v "${OUT}:/out:z" -v "${TOP}/rpm:/spec:ro,z" \
 	"registry.access.redhat.com/ubi${rel}/ubi:latest" bash -c "
 set -e
-${PRE}
 dnf -q -y install rpm-build gcc-c++ make binutils pkgconf-pkg-config ${DEVEL} libxml2-devel bzip2-devel zlib-devel systemd-rpm-macros > /tmp/dnf.log 2>&1 || { tail -20 /tmp/dnf.log; exit 1; }
 mkdir -p ~/rpmbuild/SOURCES
 cp /out/${NAME}-${VERSION}.tar.gz ~/rpmbuild/SOURCES/

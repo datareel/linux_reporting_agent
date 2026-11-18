@@ -6,6 +6,7 @@
 // RPMs need OpenSSL 3.5 or later: on RHEL 8 that is EPEL's openssl3 with
 // a static libcurl built against it (rpm/linux_reporting_agent.spec).
 
+#include <string>
 #include <curl/curl.h>
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
@@ -24,10 +25,17 @@ static inline void AgentCurlProtocols(CURL *curl, bool https_only_redirects)
 }
 
 // TLS 1.2 is the oldest version the agent speaks, whatever the host's
-// crypto policy allows (RHEL 8 LEGACY allows TLS 1.0)
-static inline void AgentCurlTlsMin(CURL *curl)
+// crypto policy allows (RHEL 8 LEGACY allows TLS 1.0). groups sets the
+// key exchange groups in order (tls_groups); empty leaves them to OpenSSL
+// and the crypto policy. libcurl 7.61 (RHEL 8 FIPS build) cannot set them.
+static inline void AgentCurlTls(CURL *curl, const std::string &groups)
 {
   curl_easy_setopt(curl, CURLOPT_SSLVERSION, (long)CURL_SSLVERSION_TLSv1_2);
+#if LIBCURL_VERSION_NUM >= 0x074900
+  if(!groups.empty()) curl_easy_setopt(curl, CURLOPT_SSL_EC_CURVES, groups.c_str());
+#else
+  (void)groups;
+#endif
 }
 
 static inline EVP_PKEY *AgentRsaGenerate(unsigned int bits)

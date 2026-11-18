@@ -22,6 +22,10 @@
 #include "common.h"
 #include "agent_auth.h"
 #include "compat.h"
+#include "tlscheck.h"
+
+// TLS version, cipher and key exchange group of the last HTTPS request
+static std::string g_last_tls;
 
 static std::string ToHex(const unsigned char *data, size_t len)
 {
@@ -283,7 +287,7 @@ int HttpPostMultipart(const AgentConfig &cfg, const std::string &path, const For
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, CurlWrite);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
   AgentCurlProtocols(curl, false);
-  AgentCurlTlsMin(curl);
+  AgentCurlTls(curl, cfg.tls_groups);
   // Never follow redirects: a signed request goes only where it was meant to
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
   if(cfg.use_https) {
@@ -291,6 +295,9 @@ int HttpPostMultipart(const AgentConfig &cfg, const std::string &path, const For
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, cfg.verify_peer ? 2L : 0L);
     if(!cfg.ca_file.empty()) curl_easy_setopt(curl, CURLOPT_CAINFO, cfg.ca_file.c_str());
   }
+
+  if(cfg.use_https) AgentCurlTlsCapture(curl, &g_last_tls);
+  else g_last_tls.clear();
 
   int error_level = 0;
   CURLcode rc = curl_easy_perform(curl);
@@ -364,6 +371,7 @@ int RegisterAgent(const AgentConfig &cfg, const AgentIdentity &id, std::string &
     return -1;
   }
   output += "Registration status from server: " + status + "\n";
+  if(!g_last_tls.empty()) output += "TLS: " + g_last_tls + "\n";
   // Anything but approved or pending carries the reason on the next line
   if(status != "approved" && status != "pending") {
     output += "Server said (HTTP " + std::to_string(http_status) + "): " + Trim(response) + "\n";
@@ -460,6 +468,7 @@ int UploadReport(const AgentConfig &cfg, const std::string &report, const std::v
   std::string status = ParseStatus(response);
   if(http_status == 200 && status == "ok") {
     output += "Upload successful: " + Trim(response) + "\n";
+    if(!g_last_tls.empty()) output += "TLS: " + g_last_tls + "\n";
     return 0;
   }
 
@@ -561,4 +570,9 @@ int UploadHook(const AgentConfig &cfg, const std::string &hook_id, const std::st
   if(status.empty()) status = "http_" + std::to_string(http_status);
   output += "ERROR - Upload " + hook_id + " rejected (HTTP " + std::to_string(http_status) + "): " + Trim(response) + "\n";
   return -1;
+}
+
+std::string LastTlsSummary()
+{
+  return g_last_tls;
 }

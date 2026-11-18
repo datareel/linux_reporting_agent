@@ -43,6 +43,8 @@ int SignString(const AgentIdentity &id, const std::string &data, std::string &si
 int HttpPostMultipart(const AgentConfig &cfg, const std::string &path, const FormFields &fields,
                       const std::vector<FormFile> &files, long &http_status, std::string &response, std::string &error);
 std::string ParseStatus(const std::string &response);
+// "TLSv1.3, <cipher>, key exchange <group>" of the last HTTPS request, or empty
+std::string LastTlsSummary();
 std::string ReadRegistrationState(const AgentConfig &cfg);
 void WriteRegistrationState(const AgentConfig &cfg, const std::string &state);
 int RegisterAgent(const AgentConfig &cfg, const AgentIdentity &id, std::string &status, std::string &output);
