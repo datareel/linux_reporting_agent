@@ -123,8 +123,9 @@ tools/check_openssl.sh ./drra %{min_openssl}
 %install
 make install DESTDIR=%{buildroot} UNITDIR=%{_unitdir}
 install -d -m 0755 %{buildroot}%{_docdir}/%{name}
-install -m 0644 README.md LICENSE %{buildroot}%{_docdir}/%{name}/
-cp -a php drsm %{buildroot}%{_docdir}/%{name}/
+install -m 0644 README.md LICENSE AGENTS.md CLAUDE.md GEMINI.md %{buildroot}%{_docdir}/%{name}/
+cp -a php drsm docs %{buildroot}%{_docdir}/%{name}/
+rm -f %{buildroot}%{_docdir}/%{name}/docs/make_docs_html.py %{buildroot}%{_docdir}/%{name}/docs/security_design.php
 %if 0%{?rhel} == 8
 # /usr/sbin/drra is an alternatives link to one of the two builds
 install -d -m 0755 %{buildroot}%{_libexecdir}/drra
@@ -208,6 +209,9 @@ systemctl try-restart drra.service >/dev/null 2>&1 || :
   TLS version, cipher and key exchange group of a test connection
 - The RPM build fails unless each binary uses the OpenSSL it must
   (tools/check_openssl.sh, make check-openssl)
+- Security design white paper (docs/security_design.html, with quantum
+  computing) and AI-assisted guide (AGENTS.md, CLAUDE.md, GEMINI.md),
+  installed with the HTML documentation in the doc folder
 
 * Sun Nov 01 2026 DataReel Software Development - 1.1.2-1
 - CSAF/VEX scans use Red Hat's advisory severity from dnf instead of the

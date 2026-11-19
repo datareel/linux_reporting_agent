@@ -1,0 +1,387 @@
+<?php
+  // Reporting Agent for Linux security design white paper (new layout), 11/19/2026.
+  // Written from the agent 1.1.3 source (src/agent_auth.cpp, common.cpp, compat.h, tlscheck.cpp,
+  // deliver.cpp, scan.cpp, drra.cpp, systemd/drra.service, rpm/linux_reporting_agent.spec,
+  // php/register.php, upload.php, hook.php, admin.php, lra_lib.php, lra_auth.php, install_server.sh)
+  // and README.md; update it when the request formats, the key handling, the TLS settings or the
+  // server checks change. The agent repo keeps this page as docs/security_design.php and a
+  // standalone copy, docs/security_design.html, made by its docs/make_docs_html.py.
+  require_once $_SERVER['DOCUMENT_ROOT'] . '/php/dr2_layout.php';
+  if ($dr2_classic = dr2_classic_page(__FILE__)) { include $dr2_classic; exit; }
+  $dr2_t = 'Reporting Agent for Linux security design';
+  $dr2_d = 'How the DataReel Reporting Agent for Linux protects a fleet inventory: an RSA key per host, certificate registration and approval, signed uploads with timestamps and one-time nonces, TLS 1.2 or later with hybrid post-quantum key exchange, the RHEL 8 standard and FIPS builds, the report server checks, the protections on the host, quantum computing and the limits.';
+  $PageTitle = $dr2_t . ' | DataReel Software Development';
+  $PageDescription = $dr2_d;
+  $CALLER_HAS_CSS_LINK = '/css/dr2_docs.css';
+  include $_SERVER['DOCUMENT_ROOT'] . '/php/dr2_all_pages_header.php';
+  echo dr2_page_head(array('Home' => '/index.php', 'Reporting Agent' => '/info_linux_reporting_agent.php', 'Security design' => NULL), 'White paper', $dr2_t, $dr2_d);
+?>
+<style>
+.fc-fig { margin: 18px 0 26px; overflow-x: auto; }
+.fc-fig svg { display: block; width: 100%; max-width: 860px; height: auto; min-width: 560px; }
+.fc-fig figcaption { color: var(--dr2-muted); font-size: 14px; margin-top: 6px; }
+.fc-fig .b { fill: var(--dr2-surface-2); stroke: var(--dr2-border-strong); stroke-width: 1.5; }
+.fc-fig .k { fill: var(--dr2-accent-soft); stroke: var(--dr2-accent); stroke-width: 1.5; }
+.fc-fig text { fill: var(--dr2-text); font: 14px system-ui, -apple-system, "Segoe UI", sans-serif; }
+.fc-fig text.s { fill: var(--dr2-muted); font-size: 12px; }
+.fc-fig .a { stroke: var(--dr2-muted); stroke-width: 1.5; fill: none; marker-end: url(#fc-arrow); }
+.fc-fig .d { stroke: var(--dr2-muted); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; marker-end: url(#fc-arrow); }
+.fc-fig marker path { fill: var(--dr2-muted); }
+.fc-table { overflow-x: auto; }
+</style>
+<article class="dr2-doc">
+
+<p><b>Release:</b> 1.1.3, with the report server pages of the same release. <b>Audience:</b> security
+reviewers, administrators and anyone deciding whether to run the agent on their hosts or trust the reports
+it sends. The source code is published, so everything on this page can be checked against it; the design
+does not depend on keeping it secret. The <a href="/linux_reporting_agent/index.php">documentation</a> has the
+setup steps, and the RPMs are on the <a href="/downloads/linux_reporting_agent/">downloads page</a>.</p>
+
+<h2 id="overview">1. What the agent protects, and from whom</h2>
+<p>The agent is a systemd service for RHEL 8, 9 and 10 that collects a report about its host (release,
+kernel, hardware, IP addresses, usage, logged in users, SELinux, firewall and SSH settings, failed services,
+pending updates, installed packages and, after a scan, the Red Hat security advisories the host still needs)
+and sends it as a text report to a report server, a CIFS share or an SSH server. The goals are:</p>
+<ul>
+<li><b>Only your hosts report:</b> the report server keeps a report only from a host that has registered its
+own key and has been approved by an administrator, or by an enrollment token the site chose to use.</li>
+<li><b>Reports cannot be changed or replayed:</b> every upload is signed over the report's hash, the host's
+name, the time and a one-time value. A changed report, a report sent again later or a report signed by
+another host is refused.</li>
+<li><b>One host cannot speak for another:</b> a report is always saved under the name of the host that
+signed it, and a name stays bound to the first key that registered it.</li>
+<li><b>No open ports:</b> the service only makes outgoing connections. Nothing on the network connects to it,
+and the DataReel System Monitor (DRSM) reads the reports without ever connecting to an agent host.</li>
+<li><b>Inventory kept private:</b> on the host the report, the key and the agent state are readable only by
+root; on the network TLS keeps it private, with hybrid post-quantum key exchange where both ends support it;
+on the server the pages that show it need a login.</li>
+</ul>
+<p>The agent does not protect against someone who is root on a host (they can make it send any report they
+like or copy its key), against an attacker who controls the report server, or against a site that runs the
+server over plain HTTP. It reports what the host tells it; it is an inventory, not an intrusion detection
+system.</p>
+
+<h2 id="architecture">2. The parts and how they trust each other</h2>
+<figure class="fc-fig">
+<svg viewBox="0 0 860 300" role="img" aria-label="Architecture: on each Linux host the drra service, running as root under a hardened systemd unit, keeps an RSA 3072 key and its state in /var/lib/drra, readable by root only. It sends signed HTTPS requests to register.php, upload.php and hook.php on the report server, or copies the report to a CIFS share or an SSH server. The server keeps registrations and reports in a data folder outside the web root. admin.php needs a login. DRSM reads the reports folder and never connects to the hosts.">
+<defs><marker id="fc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<rect class="b" x="10" y="20" width="250" height="200" rx="10"/><text x="135" y="44" text-anchor="middle">Linux host (RHEL 8, 9, 10)</text>
+<rect class="k" x="30" y="60" width="210" height="50" rx="8"/><text x="135" y="82" text-anchor="middle">Agent key, RSA 3072</text><text class="s" x="135" y="99" text-anchor="middle">/var/lib/drra, root only, mode 0600</text>
+<rect class="b" x="30" y="120" width="210" height="40" rx="8"/><text x="135" y="145" text-anchor="middle">drra.service (hardened unit)</text>
+<rect class="b" x="30" y="168" width="210" height="44" rx="8"/><text x="135" y="188" text-anchor="middle">/etc/drra, /var/lib/drra</text><text class="s" x="135" y="204" text-anchor="middle">root only</text>
+<rect class="b" x="380" y="20" width="250" height="200" rx="10"/><text x="505" y="44" text-anchor="middle">Report server (Apache + PHP)</text>
+<rect class="b" x="400" y="60" width="210" height="44" rx="8"/><text x="505" y="80" text-anchor="middle">register.php, upload.php,</text><text x="505" y="97" text-anchor="middle">hook.php: open, signed</text>
+<rect class="k" x="400" y="112" width="210" height="44" rx="8"/><text x="505" y="132" text-anchor="middle">admin.php: login</text><text class="s" x="505" y="149" text-anchor="middle">vex_index.php: open, read only</text>
+<rect class="b" x="400" y="164" width="210" height="48" rx="8"/><text x="505" y="184" text-anchor="middle">DATA_DIR</text><text class="s" x="505" y="200" text-anchor="middle">registrations, nonces, reports</text>
+<rect class="b" x="690" y="20" width="160" height="90" rx="10"/><text x="770" y="50" text-anchor="middle">CIFS share or</text><text x="770" y="68" text-anchor="middle">SSH server</text><text class="s" x="770" y="88" text-anchor="middle">not signed</text>
+<rect class="b" x="690" y="130" width="160" height="90" rx="10"/><text x="770" y="160" text-anchor="middle">DRSM</text><text class="s" x="770" y="180" text-anchor="middle">reads report files,</text><text class="s" x="770" y="196" text-anchor="middle">never connects to hosts</text>
+<path class="a" d="M240,140 L398,82"/><text class="s" x="320" y="100" text-anchor="middle">HTTPS, signed</text>
+<path class="a" d="M240,135 C450,0 600,0 688,55"/><text class="s" x="560" y="14" text-anchor="middle">CIFS or SCP</text>
+<path class="d" d="M612,188 L688,175"/><path class="d" d="M770,110 L770,128"/>
+<text class="s" x="430" y="262" text-anchor="middle">Every connection starts at the host. The service listens on no port.</text>
+<text class="s" x="430" y="280" text-anchor="middle">Dashed: DRSM reads the reports folder, or a share on the monitor host.</text>
+</svg>
+<figcaption>Figure 1. The agent, the report server and DRSM. Only the HTTPS path is signed.</figcaption>
+</figure>
+<div class="fc-table">
+<table>
+<tr><td><b>Part</b></td><td><b>Trusts</b></td><td><b>Is trusted for</b></td></tr>
+<tr><td>Agent service (root)</td><td>The host (rpm, dnf, /proc, systemd, SELinux, firewalld), the settings file, the server's TLS certificate as OpenSSL checks it against the system trust store or <code>ca_file</code></td><td>Reporting what the host tells it about itself</td></tr>
+<tr><td><code>register.php</code>, <code>upload.php</code>, <code>hook.php</code></td><td>Nothing in a request until its signature, approval state, time and nonce are checked</td><td>Keeping only approved, signed, fresh reports</td></tr>
+<tr><td><code>admin.php</code></td><td>The web server login, or the DRSM dashboard login</td><td>Approving hosts and showing their registrations to signed-in people</td></tr>
+<tr><td>DRSM</td><td>The report files in its reports folder</td><td>Alerts, the dashboard, trends and the Vulnerabilities page</td></tr>
+</table>
+</div>
+
+<h2 id="identity">3. The host's identity</h2>
+<ul>
+<li><b>The key:</b> on its first run the agent makes a 3072-bit RSA key with OpenSSL and saves it as
+<code>/var/lib/drra/agent_key.pem</code>, mode 0600 in a folder of mode 0700, owned by root. The copy in memory
+is wiped after it is written. Unlike the Windows agent, which keeps a non-exportable key in the Windows key
+store, the Linux key is a file: root can copy it, and so can anyone who can read the host's disk or
+backups.</li>
+<li><b>The certificate:</b> a self-signed X.509 certificate for that key, subject <code>CN=&lt;host
+name&gt;</code> (the short host name, lower case) and <code>O=DataReel Reporting Agent</code>, a random 128-bit
+serial number, SHA-256 with RSA, valid for 20 years, saved as <code>agent_cert.pem</code>. It is not used for
+TLS: it only carries the public key to the server. On every run the agent checks that the saved certificate
+matches the key and the host name, and makes a new one if not.</li>
+<li><b>The fingerprint:</b> the SHA-256 of the DER public key (SubjectPublicKeyInfo), printed by
+<code>drra fingerprint</code>, written to <code>drra.log</code> and shown on <code>admin.php</code>, so an
+administrator can match the two before approving.</li>
+<li><b>Random values</b> (nonces, the certificate serial) come from OpenSSL's random generator
+(<code>RAND_bytes</code>); hashes are SHA-256.</li>
+</ul>
+
+<h2 id="register">4. Registration and approval</h2>
+<figure class="fc-fig">
+<svg viewBox="0 0 860 280" role="img" aria-label="Registration: the agent signs register, host name, time, nonce and the SHA-256 of its certificate, and posts them with the certificate and the enrollment token. register.php checks the host name pattern, the nonce format and the time, that the certificate CN is the host name, the signature with the certificate's key, and that the nonce is new. A known host with the same key gets its current state; a known host with another key gets key_mismatch. A new host is saved as pending, or approved when the right enrollment token is sent and auto-approval is on. A wrong token is refused.">
+<rect class="b" x="10" y="20" width="250" height="90" rx="8"/><text x="135" y="44" text-anchor="middle">Agent signs</text><text class="s" x="135" y="64" text-anchor="middle">"register" | host | time | nonce |</text><text class="s" x="135" y="80" text-anchor="middle">SHA-256(certificate)</text><text class="s" x="135" y="98" text-anchor="middle">sends cert + token + signature</text>
+<rect class="b" x="300" y="20" width="250" height="90" rx="8"/><text x="425" y="44" text-anchor="middle">register.php checks</text><text class="s" x="425" y="64" text-anchor="middle">host name, nonce, time window,</text><text class="s" x="425" y="80" text-anchor="middle">CN = host, signature, nonce unused</text><text class="s" x="425" y="98" text-anchor="middle">(proof the agent holds the key)</text>
+<rect class="b" x="590" y="20" width="260" height="56" rx="8"/><text x="720" y="44" text-anchor="middle">Known host, same key</text><text class="s" x="720" y="62" text-anchor="middle">reply: its state (no change)</text>
+<rect class="b" x="590" y="90" width="260" height="56" rx="8"/><text x="720" y="114" text-anchor="middle">Known host, other key</text><text class="s" x="720" y="132" text-anchor="middle">key_mismatch until an admin deletes it</text>
+<rect class="b" x="590" y="160" width="260" height="56" rx="8"/><text x="720" y="184" text-anchor="middle">New host</text><text class="s" x="720" y="202" text-anchor="middle">pending, or approved by the token</text>
+<rect class="k" x="300" y="160" width="250" height="56" rx="8"/><text x="425" y="184" text-anchor="middle">admin.php: Approve</text><text class="s" x="425" y="202" text-anchor="middle">after the fingerprint check</text>
+<path class="a" d="M260,65 L298,65"/><path class="a" d="M550,50 L588,48"/><path class="a" d="M550,80 C570,85 570,115 588,118"/><path class="a" d="M550,100 C575,120 575,180 588,186"/>
+<path class="a" d="M588,195 L552,192"/>
+<text class="s" x="430" y="252" text-anchor="middle">The agent saves "approved &lt;fingerprint&gt; &lt;server&gt;" and registers again when the key or the server changes,</text>
+<text class="s" x="430" y="268" text-anchor="middle">or when the server answers not_registered, pending, revoked or key_mismatch.</text>
+</svg>
+<figcaption>Figure 2. A host name is bound to the first key that registers it.</figcaption>
+</figure>
+<ul>
+<li>The agent registers before it sends anything over HTTPS. It posts its host name, a timestamp, a random
+128-bit nonce, its certificate, the enrollment token (empty if none) and an RSA signature over
+<code>register\n&lt;host&gt;\n&lt;time&gt;\n&lt;nonce&gt;\n&lt;SHA-256 hex of the certificate&gt;</code>.</li>
+<li><code>register.php</code> refuses the request unless the host name matches
+<code>^[a-z0-9][a-z0-9_-]{0,62}$</code>, the nonce is 32 hex digits, the time is within
+<code>max_clock_skew_seconds</code> (300 by default) of the server's clock, the certificate's CN is the host name,
+the signature verifies with the certificate's own key, and the nonce has not been used.</li>
+<li>A host name that is already registered with a different key fingerprint is refused with
+<code>key_mismatch</code>; only an administrator can delete the old registration. A known host with the same
+key only gets its current state back.</li>
+<li><b>Approval:</b> a new host is saved as <code>pending</code> and waits for an administrator to approve it on
+<code>admin.php</code>. If the site sets an <code>enrollment_token</code> in <code>server.ini</code> and keeps
+<code>auto_approve_with_token = 1</code>, a host that sends the same token is approved at once; the token is
+compared in constant time (<code>hash_equals</code>), and a wrong token is refused with <code>bad_token</code>.
+A host that sends no token is registered as pending.</li>
+<li><b>Revoke and delete:</b> a revoked host stays listed and its uploads are refused. Deleting the
+registration lets the name register again, with any key.</li>
+</ul>
+
+<h2 id="upload">5. Signed uploads</h2>
+<figure class="fc-fig">
+<svg viewBox="0 0 860 250" role="img" aria-label="Upload checks in order: host name and nonce format, time window, host registered and approved, size limit, signature over upload, host, time, nonce and the SHA-256 of the report with the registered certificate, nonce not used before, then the report is written to a temporary file and renamed to the signing host's report name. Any failure gives a STATUS reply and nothing is saved.">
+<rect class="b" x="10" y="20" width="155" height="64" rx="8"/><text x="87" y="48" text-anchor="middle">1. Format</text><text class="s" x="87" y="66" text-anchor="middle">host name, nonce</text>
+<rect class="b" x="180" y="20" width="155" height="64" rx="8"/><text x="257" y="48" text-anchor="middle">2. Time</text><text class="s" x="257" y="66" text-anchor="middle">within 300 s</text>
+<rect class="b" x="350" y="20" width="155" height="64" rx="8"/><text x="427" y="48" text-anchor="middle">3. Approved</text><text class="s" x="427" y="66" text-anchor="middle">registered, not revoked</text>
+<rect class="b" x="520" y="20" width="155" height="64" rx="8"/><text x="597" y="48" text-anchor="middle">4. Size</text><text class="s" x="597" y="66" text-anchor="middle">2 MB by default</text>
+<rect class="k" x="690" y="20" width="160" height="64" rx="8"/><text x="770" y="48" text-anchor="middle">5. Signature</text><text class="s" x="770" y="66" text-anchor="middle">registered certificate</text>
+<rect class="b" x="520" y="130" width="155" height="64" rx="8"/><text x="597" y="158" text-anchor="middle">6. Nonce</text><text class="s" x="597" y="176" text-anchor="middle">never seen before</text>
+<rect class="k" x="690" y="130" width="160" height="64" rx="8"/><text x="770" y="158" text-anchor="middle">7. Save</text><text class="s" x="770" y="176" text-anchor="middle">under the signer's name</text>
+<rect class="b" x="10" y="130" width="420" height="64" rx="8"/><text x="220" y="158" text-anchor="middle">Any failure</text><text class="s" x="220" y="176" text-anchor="middle">STATUS: bad_timestamp, not_registered, pending, revoked, bad_signature, replay ...</text>
+<path class="a" d="M165,52 L178,52"/><path class="a" d="M335,52 L348,52"/><path class="a" d="M505,52 L518,52"/><path class="a" d="M675,52 L688,52"/>
+<path class="a" d="M770,84 C770,110 640,105 610,128"/><path class="a" d="M675,162 L688,162"/>
+<path class="a" d="M520,162 L432,162"/>
+<text class="s" x="430" y="230" text-anchor="middle">Signed data: "upload" | host | time | nonce | SHA-256 of the report (RSA PKCS#1 v1.5, SHA-256)</text>
+</svg>
+<figcaption>Figure 3. A report is saved only after every check passes.</figcaption>
+</figure>
+<ul>
+<li>Each upload carries the host name, a timestamp, a new random 128-bit nonce, the report and an RSA PKCS#1
+v1.5 SHA-256 signature over <code>upload\n&lt;host&gt;\n&lt;time&gt;\n&lt;nonce&gt;\n&lt;SHA-256 hex of the
+report&gt;</code>, followed by one <code>\n&lt;field&gt; &lt;SHA-256&gt;</code> line for each OpenSCAP HTML report
+sent with it. The server checks it with <code>openssl_verify</code> against the certificate saved at
+registration, never against anything in the request.</li>
+<li><b>Replay protection:</b> the nonce is recorded per host, under a file lock, and a nonce that was already
+used is refused with <code>replay</code>. Nonces are kept for twice the clock window, and older requests fail
+the time check anyway, so a captured request cannot be sent again.</li>
+<li><b>Where it is saved:</b> as <code>&lt;host&gt;_linux_report_agent.txt</code> for the host that signed,
+whatever file name was sent, written to a temporary name and renamed, so a reader never sees half a
+report.</li>
+<li><b>Replies</b> are a <code>STATUS:</code> line the agent acts on. When the server says
+<code>not_registered</code>, <code>pending</code>, <code>revoked</code> or <code>key_mismatch</code>, the agent clears
+its saved state and registers again on its next cycle, so it notices a revoke or a deleted registration
+without anyone touching the host.</li>
+<li><b>Hook uploads</b> (reports from other tools, sent with <code>drra submit</code>) go to
+<code>hook.php</code> with the same checks, signed over <code>hook\n&lt;host&gt;\n&lt;time&gt;\n&lt;nonce&gt;\n&lt;hook
+ID&gt;\n&lt;subject&gt;\n&lt;SHA-256 of the envelope&gt;\n&lt;SHA-256 of the payload&gt;</code>. The server also
+requires a manifest for that hook ID, a subject that is the signing host itself, an envelope that matches the
+request, the manifest's size limit and minimum interval.</li>
+</ul>
+
+<h2 id="transport">6. Transport and delivery methods</h2>
+<ul>
+<li><b>HTTPS</b> uses libcurl and OpenSSL. The server's certificate and host name are checked against the
+system trust store (<code>/etc/pki/tls/certs/ca-bundle.crt</code>) or <code>ca_file</code> for a private CA.
+The agent pins no certificate and never follows a redirect with a signed request. <b>TLS 1.2 is the oldest
+version the agent uses</b>, whatever the host's crypto policy allows (RHEL 8's LEGACY policy allows TLS 1.0).
+<code>verify_peer=0</code> and <code>use_https=0</code> are for test servers only: the signature still stops
+changed or forged reports, but the inventory can be read on the network.</li>
+<li><b>Which OpenSSL:</b> every release build needs OpenSSL 3.5 (the long term support release) or later,
+except the RHEL 8 FIPS build:
+<div class="fc-table">
+<table>
+<tr><td><b>Build</b></td><td><b>OpenSSL and libcurl</b></td><td><b>Ciphers and key exchange groups</b></td></tr>
+<tr><td>RHEL 8 standard (<code>/usr/libexec/drra/drra-standard</code>)</td><td>OpenSSL 3.5.9 and libcurl 8.23.0 built in (static), with their own settings folder <code>/etc/drra/openssl</code>; the system OpenSSL 1.1.1 is not used</td><td>OpenSSL 3.5 defaults; groups <code>X25519MLKEM768:X25519:P-256</code> (<code>[https] tls_groups</code>). RHEL 8's crypto policy does not apply.</td></tr>
+<tr><td>RHEL 8 FIPS (<code>/usr/libexec/drra/drra-fips</code>)</td><td>RHEL 8's own <code>openssl-libs</code> 1.1.1 and <code>libcurl</code></td><td>The system crypto policy (FIPS mode with the FIPS policy). No ML-KEM.</td></tr>
+<tr><td>RHEL 9 and 10</td><td>The system <code>openssl-libs</code> (3.5 or later, required by the RPM) and <code>libcurl</code></td><td>The system crypto policy, or <code>[https] tls_groups</code></td></tr>
+</table>
+</div>
+On RHEL 8, <code>/usr/sbin/drra</code> is an <code>alternatives</code> link to one of the two builds; the RPM picks
+the FIPS build on a host in FIPS mode (section 9). The RPM build fails unless each binary uses the OpenSSL it
+must (<code>tools/check_openssl.sh</code>), and <code>drra selftest</code> shows the build, the OpenSSL in use,
+the FIPS mode and, with a URL, the TLS version, cipher and key exchange group of a connection. Each upload and
+registration writes that TLS line to <code>drra.log</code>.</li>
+<li><b>Feeds:</b> the OVAL feed (RHEL 8 and 9) comes from Red Hat over HTTPS, and the RHEL 10 CSAF/VEX index
+from the report server's <code>vex_index.php</code> over the same TLS settings. Neither is signed by the agent's
+protocol: their integrity rests on TLS and on the server.</li>
+<li><b>CIFS share:</b> <code>smbclient</code> with a share login in <code>/etc/drra/cifs_credentials</code>
+(mode 0600). The report is copied under a temporary name and renamed. These copies are not signed: who can
+write is decided by the share and folder permissions. SMB signing and encryption are Samba's and the file
+server's settings.</li>
+<li><b>SCP:</b> the host's OpenSSH <code>scp</code> in batch mode with <code>/etc/drra/id_ed25519</code>,
+<code>IdentitiesOnly=yes</code>, <code>StrictHostKeyChecking=yes</code> by default against
+<code>/var/lib/drra/known_hosts</code>, and a timeout. Not signed either: the SSH account decides who can write.
+The SSH key exchange is OpenSSH's own, not the agent's OpenSSL settings.</li>
+<li>DRSM reads report files; it trusts whatever is in its reports folder. Give only the report server or the
+share write access to that folder.</li>
+</ul>
+
+<h2 id="host">7. On the Linux host</h2>
+<ul>
+<li>The service runs as root, needs no firewall rule and opens no port. The systemd unit makes
+<code>/usr</code>, <code>/boot</code> and <code>/etc</code> read only and home folders read only, gives the service a
+private <code>/tmp</code>, and sets <code>NoNewPrivileges</code>, kernel tunable, module and control group
+protection, at low CPU and I/O priority.</li>
+<li><code>/etc/drra/drra.ini</code> (with the enrollment token) is mode 0600, and the files the agent writes
+(the key, the certificate, the registration state, the reports, the scan results) are private to root.</li>
+<li>Report hooks run only from root-owned files that are not group or world writable, and can run as another
+user. Members of the <code>drra-upload</code> group can queue hook uploads; nothing else is open to other
+users.</li>
+<li>The RPM keeps <code>/etc/drra</code> and <code>/var/lib/drra</code> on upgrade, so a host keeps its key and does
+not need to be approved again.</li>
+<li>Vulnerability scans run by hand (<code>drra scan</code>) unless the site turns them on. They read the rpm
+database and run <code>oscap</code> or <code>dnf</code>; they download feeds but install nothing.</li>
+</ul>
+
+<h2 id="server">8. On the report server</h2>
+<ul>
+<li><code>server.ini</code>, the registrations, the nonces, the reports, the hook data and the admin password
+file live in <code>DATA_DIR</code>. <code>install_server.sh</code> puts it outside the web root, or, on shared
+hosting, inside it with a <code>Require all denied</code> <code>.htaccess</code>. The library pages
+(<code>lra_lib.php</code>, <code>lra_auth.php</code>, <code>hook_lib.php</code>) cannot be opened from the
+web.</li>
+<li>Host names and hook IDs are checked against fixed patterns before they are used in a file name, so a
+request cannot reach another folder.</li>
+<li><code>admin.php</code> needs a login: Apache Basic authentication (with <code>require_remote_user = 1</code>,
+the default, the page refuses to run without it) or, with <code>login = drsm</code>, the DRSM dashboard login.
+Every change on <code>admin.php</code> needs a per-session CSRF token, and all output is HTML-escaped.</li>
+<li>Files are written to a temporary name and renamed into place.</li>
+<li>TLS on the report server, including whether it offers hybrid post-quantum key exchange, is the web
+server's configuration, not the agent's (section 12).</li>
+</ul>
+
+<h2 id="crypto">9. Cryptography and FIPS</h2>
+<div class="fc-table">
+<table>
+<tr><td><b>Use</b></td><td><b>Algorithm</b></td><td><b>Done by</b></td></tr>
+<tr><td>Host identity</td><td>RSA 3072, key file root only</td><td>OpenSSL on the host</td></tr>
+<tr><td>Request signatures</td><td>RSA PKCS#1 v1.5 with SHA-256</td><td>OpenSSL on the host, PHP OpenSSL on the server</td></tr>
+<tr><td>Report and certificate hashes, fingerprint</td><td>SHA-256</td><td>OpenSSL, PHP</td></tr>
+<tr><td>Nonces</td><td>128 random bits</td><td>OpenSSL <code>RAND_bytes</code></td></tr>
+<tr><td>Transport</td><td>TLS 1.2 or 1.3; key exchange in section 12</td><td>libcurl and OpenSSL (section 6), Apache</td></tr>
+</table>
+</div>
+<p>The agent is not a validated cryptographic module and makes no FIPS claim of its own. Its cryptography is
+done by OpenSSL and, on the server, by PHP's OpenSSL extension:</p>
+<ul>
+<li><b>RHEL 8 FIPS build:</b> uses RHEL 8's own OpenSSL 1.1.1, which runs in FIPS mode when the host is in FIPS
+mode (<code>drra selftest</code> shows <code>OpenSSL FIPS: on</code>), under the host's FIPS crypto policy. Red
+Hat has had RHEL 8's OpenSSL module validated under FIPS 140; check the certificate that covers your minor
+release and package version on Red Hat's compliance pages or the NIST CMVP list.</li>
+<li><b>RHEL 8 standard build:</b> its built-in OpenSSL 3.5.9 is not FIPS validated. It refuses to run when
+<code>/proc/sys/crypto/fips_enabled</code> is 1: it logs why and exits with status 78, which systemd does not
+restart (<code>RestartPreventExitStatus=78</code>). Installing the RPM on a host in FIPS mode picks the FIPS
+build.</li>
+<li><b>RHEL 9 and 10:</b> use the system OpenSSL, which in FIPS mode uses Red Hat's FIPS provider. Whether the
+provider version on a given minor release has a CMVP certificate, or is still in process, is Red Hat's to
+state: check it before relying on FIPS mode.</li>
+<li>RSA 3072 with SHA-256 signatures and SHA-256 hashes are approved algorithms in FIPS mode. Check your site's
+policy with your security office if your site needs FIPS 140-3.</li>
+</ul>
+
+<h2 id="data">10. What a report holds</h2>
+<p>A report names the host, its serial number, IP addresses, logged in users, every installed package and
+version, pending updates, SELinux, firewall and SSH settings, failed services and, after a scan, the security
+advisories and CVEs still to fix. Together the reports are a map of the fleet and its weak spots, so treat
+the reports folder like any other sensitive inventory: keep the pages that show it behind a login, keep
+backups private, and give DRSM and other readers access only to what they need. The agent sends no
+passwords and no file contents beyond what report hooks and hook uploads are set up to send.</p>
+
+<h2 id="limits">11. Limits, stated plainly</h2>
+<ul>
+<li>Root on a host can make it send any report, and can copy its key to another machine. The signature proves
+which key sent a report and that it was not changed on the way, not that its contents are true.</li>
+<li>The agent key is a file: a disk image, a backup or a cloned virtual machine template carries it. Remove
+<code>/var/lib/drra/agent_*.pem</code> from templates, and keep backups private.</li>
+<li>The enrollment token is a shared secret. With auto-approval on, anyone who has it can register a host
+under an unused name. Use admin approval, or turn auto-approval off or change the token after a rollout, if
+that matters to you.</li>
+<li>The first key to register a name wins. A host that registers before the real one holds that name until an
+administrator deletes it: check fingerprints before approving.</li>
+<li>CIFS and SCP deliveries are not signed, and DRSM trusts its reports folder.</li>
+<li>The SCP key has no passphrase. Limit the SSH account to the reports folder on the server.</li>
+<li>Reports are saved on the server with mode 644. On a shared host, make sure other accounts cannot read
+<code>DATA_DIR</code>.</li>
+<li>The replay check depends on the clocks: a server whose clock is far off refuses good reports
+(<code>bad_timestamp</code>), and the fix is the clock, not a larger window.</li>
+<li>The RHEL 8 standard build's OpenSSL and libcurl are built in: their security fixes come with new agent
+releases, not with <code>dnf update openssl</code>. The FIPS build and the RHEL 9 and 10 builds get them from
+Red Hat.</li>
+<li>The agent's own security updates come with new releases; it does not update itself.</li>
+</ul>
+
+<h2 id="quantum">12. Quantum computing</h2>
+<p>A large quantum computer, if one is built, could break RSA and elliptic-curve cryptography. For this
+agent that matters in two places:</p>
+<ul>
+<li><b>Reports on the network:</b> an attacker who records TLS traffic today could decrypt it later if the
+TLS key exchange was classical ("harvest now, decrypt later"). The reports are an inventory with the
+fixes each host is missing, so the key exchange is what decides how long they stay private.</li>
+<li><b>Signatures:</b> the RSA signatures could be forged once such a computer exists, which would let an
+attacker send false reports for a registered host. Signatures made today cannot be turned into anything
+readable later.</li>
+</ul>
+<p><b>Hybrid post-quantum key exchange.</b> Release 1.1.3 can use the hybrid TLS group
+<code>X25519MLKEM768</code>: ML-KEM-768 (NIST FIPS 203) combined with X25519, so the connection key stays
+secret as long as either of the two holds. The group is used only when both the agent and the report server
+offer it; otherwise TLS falls back to a classical group (X25519 or P-256) and the connection still works.
+What each build offers, as tested on 11/18/2026 against a server that offers the hybrid group:</p>
+<div class="fc-table">
+<table>
+<tr><td><b>Build</b></td><td><b>Offers</b></td><td><b>Key exchange in the test</b></td></tr>
+<tr><td>RHEL 8 standard</td><td><code>X25519MLKEM768</code>, then <code>X25519</code>, <code>P-256</code> (built-in default)</td><td>X25519MLKEM768</td></tr>
+<tr><td>RHEL 8 FIPS</td><td>RHEL 8's OpenSSL 1.1.1 has no ML-KEM; classical groups of the crypto policy</td><td>X25519 (FIPS mode: P-256)</td></tr>
+<tr><td>RHEL 9 (9.8, OpenSSL 3.5.8)</td><td>The DEFAULT crypto policy does not offer ML-KEM. With <code>[https] tls_groups=X25519MLKEM768:X25519:P-256</code> it does.</td><td>x25519 by default; X25519MLKEM768 with that setting</td></tr>
+<tr><td>RHEL 10 (10.2, OpenSSL 3.5.8)</td><td>The DEFAULT crypto policy offers ML-KEM first</td><td>X25519MLKEM768</td></tr>
+</table>
+</div>
+<p>RHEL 9 and 10 hosts in FIPS mode follow Red Hat's FIPS provider and FIPS policy; check the group with
+<code>drra selftest https://&lt;your server&gt;/</code> on such a host. The <code>TLS:</code> line in
+<code>drra.log</code> shows the group of every upload.</p>
+<p><b>The report server decides too.</b> A web server that does not offer the hybrid group gets a classical key
+exchange from every agent. For hybrid key exchange the server's TLS library needs ML-KEM (OpenSSL 3.5 or later)
+and a group list that includes it (for example Apache with <code>SSLOpenSSLConfCmd Groups
+X25519MLKEM768:X25519:secp256r1</code>, where supported). The datareel.com hosted report server does not offer
+the hybrid group yet, so connections to it use X25519 until the server supports ML-KEM; no agent change is
+needed when it does.</p>
+<ul>
+<li><b>Quantum-resistant today:</b> the TLS record encryption (AES-256-GCM, ChaCha20-Poly1305 or AES-128-GCM:
+the best known quantum attack roughly halves their key strength), SHA-256 (report hashes and fingerprints), the
+nonce and time checks, and the hybrid key exchange where both ends use it.</li>
+<li><b>Not quantum-resistant:</b> the RSA 3072 signatures and self-signed certificates, the report server's
+TLS certificate (RSA or elliptic-curve, from the public certificate authorities), classical TLS key exchange,
+and the SSH and SMB key exchange of SCP and CIFS delivery.</li>
+<li><b>Standards, stated plainly:</b> the agent is not CNSA 2.0 compliant. CNSA 2.0 calls for ML-KEM-1024 and
+ML-DSA signatures; this release uses ML-KEM-768 in a hybrid with X25519, which is the TLS hybrid group used by
+current browsers and servers, and RSA signatures. The FIPS build has no post-quantum algorithm, because RHEL
+8's FIPS OpenSSL has none.</li>
+<li><b>Moving on:</b> a later release is planned to sign with ML-DSA (NIST FIPS 204) once PHP's OpenSSL
+extension on report servers can verify it, with a new registration for each host. RHEL 8's FIPS OpenSSL 1.1.1
+will not get ML-DSA, so the RHEL 8 FIPS build keeps RSA.</li>
+</ul>
+
+<h2 id="ai">13. AI-assisted use</h2>
+<p>The <a href="/linux_reporting_agent/ai_assisted_guide.php">AI-assisted guide</a> (<code>AGENTS.md</code>) keeps
+an AI agent away from every secret on this page: it never reads the enrollment token, the agent's private
+key, a share login, an SCP key, <code>server.ini</code> or the admin passwords, never suggests copying the key,
+weakening a check, turning FIPS mode on or off or running the standard build in FIPS mode, and never approves
+a host without the fingerprint check. People run or approve every step.</p>
+
+<h2 id="report">14. Reporting a security issue</h2>
+<p>Report security issues privately through the <a href="/contact.php">contact page</a>, not in public issue
+trackers. Fixes go into the next release; the <a href="/linux_reporting_agent/docs/changelog.html">change
+log</a> lists every release and what changed.</p>
+
+</article>
+<?php include $_SERVER['DOCUMENT_ROOT'] . '/php/dr2_all_pages_footer.php'; ?>

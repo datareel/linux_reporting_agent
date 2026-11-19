@@ -6,6 +6,7 @@ import os, sys
 OUT = sys.argv[1]
 DL = "https://datareel.com/downloads/linux_reporting_agent/"
 DEMO = ""
+AI_GUIDE = "https://datareel.com/linux_reporting_agent/ai_assisted_guide.php"
 VERSION = "1.1.3"
 
 ICON_MENU = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>'
@@ -56,6 +57,7 @@ def page(fname, title, desc, toc, body):
     side.append("<h4>Links</h4>")
     if DEMO:
         side.append('<a href="%s">Live demo</a>' % DEMO)
+    side.append('<a href="security_design.html">Security design (white paper)</a><a href="%s">AI-assisted guide</a>' % AI_GUIDE)
     side.append('<a href="%s">Downloads</a><a href="https://datareel.com/contact.php">Report an issue</a>' % DL)
 
     i = ORDER.index(fname)
@@ -209,6 +211,8 @@ page("index.html", "Overview",
   <li><code>README.md</code> in the source code covers the same ground as plain text, and is installed in <code>/usr/share/doc/linux_reporting_agent</code>.</li>
   <li><code>/etc/drra/drra.ini</code> describes every agent setting, and <code>php/server.ini.example</code> every server setting.</li>
   <li><code>drra help</code> lists the commands.</li>
+  <li><a href="security_design.html">Security design</a> (<code>docs/security_design.html</code>), the white paper: the host key, registration and approval, signed uploads, TLS and the RHEL 8 standard and FIPS builds, the server checks, cryptography and FIPS, quantum computing and the limits</li>
+  <li><code>AGENTS.md</code> (with <code>CLAUDE.md</code> and <code>GEMINI.md</code>), the <a href="https://datareel.com/linux_reporting_agent/ai_assisted_guide.php">AI-assisted guide</a>: how an approved enterprise AI agent assists your administrators with the report server, installs, approvals, upgrades and support, with people running or approving every step. Installed with the RPM in <code>/usr/share/doc/linux_reporting_agent</code>.</li>
 </ul>
 """)
 
@@ -644,7 +648,7 @@ page("security.html", "Security",
      [("identity", "Agent identity"), ("registration", "Registration"), ("uploads", "Signed uploads"), ("tls", "TLS"), ("service", "The service"), ("server", "Server side"), ("limits", "Limits")],
      """
 <h1>Security</h1>
-<p class="lead">The host only makes outgoing connections, and the server only keeps reports signed by approved hosts.</p>
+<p class="lead">The host only makes outgoing connections, and the server only keeps reports signed by approved hosts. The <a href="security_design.html">security design white paper</a> goes further: trust between the parts, every server check, the delivery methods, cryptography and FIPS, quantum computing and the limits, with diagrams.</p>
 
 <h2 id="identity">Agent identity</h2>
 <p>On its first run the agent makes an RSA 3072 key and a self-signed certificate (CN = the host name, valid 20 years) in <code>/var/lib/drra</code>, readable by root only. The key never leaves the host.</p>
@@ -656,7 +660,7 @@ page("security.html", "Security",
 <p>Each upload carries the report's SHA-256 hash (and the hash of each HTML report or hook file), the host name, a time stamp and a nonce, signed with RSA PKCS#1 v1.5 and SHA-256. The server checks the signature against the registered certificate, refuses agents that are not approved, refuses a time stamp more than <code>max_clock_skew_seconds</code> (300) from its clock, and refuses a nonce it has seen, so a captured upload cannot be sent again.</p>
 
 <h2 id="tls">TLS</h2>
-<p>Uploads use HTTPS through libcurl and OpenSSL (3.5 or later; RHEL 8's 1.1.1 in the RHEL 8 FIPS build), TLS 1.2 or 1.3, with certificate and host name checks against the system trust store, or <code>ca_file</code> for a private CA. The RHEL 8 standard build offers hybrid post-quantum key exchange (X25519MLKEM768, then X25519 and P-256); other builds follow OpenSSL and the host's crypto policy, and <code>[https] tls_groups</code> sets the groups. The RHEL 8 FIPS build uses RHEL 8's OpenSSL 1.1.1 for FIPS mode (see <a href="install.html#rhel8">Install</a>). The log line of each upload names the TLS version, cipher and key exchange group. <code>verify_peer=0</code> and <code>use_https=0</code> exist for test servers only.</p>
+<p>Uploads use HTTPS through libcurl and OpenSSL (3.5 or later; RHEL 8's 1.1.1 in the RHEL 8 FIPS build), TLS 1.2 or 1.3, with certificate and host name checks against the system trust store, or <code>ca_file</code> for a private CA. The RHEL 8 standard build offers hybrid post-quantum key exchange (X25519MLKEM768, then X25519 and P-256). RHEL 10's default crypto policy offers it too; on RHEL 9 set <code>[https] tls_groups=X25519MLKEM768:X25519:P-256</code> to offer it. The hybrid group is used only when the report server offers it as well; otherwise the connection falls back to X25519 or P-256 (see <a href="security_design.html#quantum">Quantum computing</a> in the white paper). The RHEL 8 FIPS build uses RHEL 8's OpenSSL 1.1.1 for FIPS mode (see <a href="install.html#rhel8">Install</a>). The log line of each upload names the TLS version, cipher and key exchange group. <code>verify_peer=0</code> and <code>use_https=0</code> exist for test servers only.</p>
 
 <h2 id="service">The service</h2>
 <p>The agent runs as root to read the package database, SELinux, firewalld and sshd settings and the DMI serial number. The systemd unit makes <code>/usr</code>, <code>/boot</code> and <code>/etc</code> read only, home folders read only, <code>/tmp</code> private, and sets <code>NoNewPrivileges</code>, kernel tunable and module protection, at low CPU and I/O priority. Files the agent writes are private to root. Report hooks run only from root owned, not group or world writable files, and can run as another user.</p>
@@ -780,6 +784,7 @@ page("changelog.html", "What's new",
   <li>The log line of each upload and registration names the TLS version, cipher and key exchange group.</li>
   <li><strong><code>drra selftest [URL]</code>:</strong> the build, OpenSSL, libcurl and FIPS mode and, with a URL, the TLS version, cipher and key exchange group of a test connection.</li>
   <li>The RPM build fails unless each binary uses the OpenSSL it must (<code>tools/check_openssl.sh</code>, <code>make check-openssl</code>).</li>
+  <li><strong>Security design white paper and AI-assisted guide:</strong> <a href="security_design.html">docs/security_design.html</a> describes the trust between the parts, every server check, TLS and the two RHEL 8 builds, cryptography and FIPS, quantum computing (what is and is not quantum-resistant) and the limits. <code>AGENTS.md</code>, with <code>CLAUDE.md</code> and <code>GEMINI.md</code>, is the <a href="https://datareel.com/linux_reporting_agent/ai_assisted_guide.php">AI-assisted guide</a>. The RPM installs them in <code>/usr/share/doc/linux_reporting_agent</code>.</li>
 </ul>
 
 <h2 id="v112">Release 1.1.2 <span class="badge new">November 2026</span></h2>

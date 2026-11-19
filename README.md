@@ -214,6 +214,47 @@ $NAVextra[] = array("label" => "Vulnerabilities", "url" => "{$WWWvpath}/php/vuln
 $LRAreportsDir = "/var/www/html/linux/reports";   // only where the uploads land
 ```
 
+## Security
+
+Each host has its own RSA 3072 key and certificate, registers before its
+first report, and signs every upload; the server keeps reports only from
+approved hosts, refuses replays and old timestamps, and saves a report
+only under the name of the host that signed it. Uploads use TLS 1.2 or
+later. The RHEL 8 RPM has two builds: `drra-standard` (OpenSSL 3.5.9
+built in, hybrid post-quantum key exchange X25519MLKEM768, then X25519
+and P-256) and `drra-fips` (RHEL 8's FIPS OpenSSL 1.1.1, for hosts in
+FIPS mode); `drra selftest [URL]` shows the build, the OpenSSL and the
+key exchange group.
+
+The security design white paper, `docs/security_design.html` (also at
+<https://datareel.com/linux_reporting_agent/security_design.php>),
+describes the trust between the parts, every server check, the delivery
+methods, cryptography and FIPS, quantum computing and the limits, with
+diagrams.
+
+## AI-assisted install, upgrade and support
+
+`AGENTS.md` lets an AI agent (Gemini CLI reads it through `GEMINI.md`,
+Claude Code through `CLAUDE.md`, other agents read it directly) assist
+your own administrators and developers to set up the report server,
+install and approve hosts, upgrade, connect DRSM, build and troubleshoot.
+It is also at <https://datareel.com/linux_reporting_agent/ai_assisted_guide.php>.
+
+- Before any AI assistance, review your agency's or company's AI usage
+  policies and get formal written approval from your management team.
+  Use only approved enterprise AI models: the agent may see host names,
+  user names, IP addresses, installed packages, missing fixes and logs.
+  Public or free AI tools, open source and self-built models may expose
+  that information. The entire risk of AI-assisted use rests with the
+  user. Naming an AI tool is a reference only, not an endorsement.
+- Human in the loop, never autonomous: the agent prints each command,
+  and people run it or approve it one step at a time. No auto-approve
+  modes, no unattended runs; rollouts stay with your deployment tools.
+- The agent never sees the enrollment token, the agent's private key, a
+  share login, an SCP key, an admin password or `server.ini`, never
+  suggests copying the key or changing FIPS mode, and never approves a
+  host before its fingerprint is checked.
+
 ## Build
 
 ```
