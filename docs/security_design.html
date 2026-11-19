@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Reporting Agent for Linux security design</title>
-<meta name="description" content="How the DataReel Reporting Agent for Linux protects a fleet inventory: an RSA key per host, certificate registration and approval, signed uploads with timestamps and one-time nonces, TLS 1.2 or later with hybrid post-quantum key exchange, the RHEL 8 standard and FIPS builds, the report server checks, the protections on the host, quantum computing and the limits.">
+<meta name="description" content="How the DataReel Reporting Agent for Linux protects a fleet inventory: an RSA key per host, certificate registration and approval, signed uploads with timestamps and one-time nonces, TLS 1.2 or later with hybrid post-quantum key exchange, the two RHEL 8 packages and the crypto policy, the report server checks, the protections on the host, quantum computing and the limits.">
 <!-- Made by docs/make_docs_html.py from docs/security_design.php
      (https://datareel.com/linux_reporting_agent/security_design.php); edit the page, not this file. -->
 <style>
@@ -44,7 +44,7 @@ h1 { font-size: 1.7em; margin-top: 0; }
 <body>
 <article class="dr2-doc">
 <h1>Reporting Agent for Linux security design</h1>
-<p>How the DataReel Reporting Agent for Linux protects a fleet inventory: an RSA key per host, certificate registration and approval, signed uploads with timestamps and one-time nonces, TLS 1.2 or later with hybrid post-quantum key exchange, the RHEL 8 standard and FIPS builds, the report server checks, the protections on the host, quantum computing and the limits.</p>
+<p>How the DataReel Reporting Agent for Linux protects a fleet inventory: an RSA key per host, certificate registration and approval, signed uploads with timestamps and one-time nonces, TLS 1.2 or later with hybrid post-quantum key exchange, the two RHEL 8 packages and the crypto policy, the report server checks, the protections on the host, quantum computing and the limits.</p>
 <p>The current copy is at <a href="https://datareel.com/linux_reporting_agent/security_design.php">https://datareel.com/linux_reporting_agent/security_design.php</a>.</p>
 
 
@@ -215,20 +215,31 @@ version the agent uses</b>, whatever the host's crypto policy allows (RHEL 8's L
 <code>verify_peer=0</code> and <code>use_https=0</code> are for test servers only: the signature still stops
 changed or forged reports, but the inventory can be read on the network.</li>
 <li><b>Which OpenSSL:</b> every release build needs OpenSSL 3.5 (the long term support release) or later,
-except the RHEL 8 FIPS build:
+except the RHEL 8 <code>linux_reporting_agent</code> package, which is for FIPS mode:
 <div class="fc-table">
 <table>
-<tr><td><b>Build</b></td><td><b>OpenSSL and libcurl</b></td><td><b>Ciphers and key exchange groups</b></td></tr>
-<tr><td>RHEL 8 standard (<code>/usr/libexec/drra/drra-standard</code>)</td><td>OpenSSL 3.5.9 and libcurl 8.23.0 built in (static), with their own settings folder <code>/etc/drra/openssl</code>; the system OpenSSL 1.1.1 is not used</td><td>OpenSSL 3.5 defaults; groups <code>X25519MLKEM768:X25519:P-256</code> (<code>[https] tls_groups</code>). RHEL 8's crypto policy does not apply.</td></tr>
-<tr><td>RHEL 8 FIPS (<code>/usr/libexec/drra/drra-fips</code>)</td><td>RHEL 8's own <code>openssl-libs</code> 1.1.1 and <code>libcurl</code></td><td>The system crypto policy (FIPS mode with the FIPS policy). No ML-KEM.</td></tr>
+<tr><td><b>Package</b></td><td><b>OpenSSL and libcurl</b></td><td><b>Ciphers and key exchange groups</b></td></tr>
+<tr><td>RHEL 8 <code>linux_reporting_agent</code></td><td>RHEL 8's own <code>openssl-libs</code> 1.1.1 and <code>libcurl</code></td><td>The system crypto policy (FIPS mode with the FIPS policy). No ML-KEM.</td></tr>
+<tr><td>RHEL 8 <code>linux_reporting_agent-openssl35</code></td><td>OpenSSL 3.5.9 and libcurl 8.23.0 built in (static); the system OpenSSL 1.1.1 is not used</td><td>The system crypto policy, applied by the agent (below); groups: X25519MLKEM768 first, then the classical groups, or <code>[https] tls_groups</code></td></tr>
 <tr><td>RHEL 9 and 10</td><td>The system <code>openssl-libs</code> (3.5 or later, required by the RPM) and <code>libcurl</code></td><td>The system crypto policy, or <code>[https] tls_groups</code></td></tr>
 </table>
 </div>
-On RHEL 8, <code>/usr/sbin/drra</code> is an <code>alternatives</code> link to one of the two builds; the RPM picks
-the FIPS build on a host in FIPS mode (section 9). The RPM build fails unless each binary uses the OpenSSL it
+The two RHEL 8 packages conflict; the openssl35 package will not install on a host in FIPS mode (section 9),
+and a switch is <code>dnf install --allowerasing</code>. The RPM build fails unless each binary uses the OpenSSL it
 must (<code>tools/check_openssl.sh</code>), and <code>drra selftest</code> shows the build, the OpenSSL in use,
-the FIPS mode and, with a URL, the TLS version, cipher and key exchange group of a connection. Each upload and
+the FIPS mode, the crypto policy and, with a URL, the TLS version, cipher and key exchange group of a connection. Each upload and
 registration writes that TLS line to <code>drra.log</code>.</li>
+<li><b>The crypto policy in the openssl35 package:</b> its own OpenSSL does not read RHEL 8's
+<code>openssl.cnf</code>, so the agent reads the policy's OpenSSL back-end,
+<code>/etc/crypto-policies/back-ends/opensslcnf.config</code>, and applies its <code>CipherString</code>,
+<code>Ciphersuites</code>, <code>SignatureAlgorithms</code> and <code>TLS.MinProtocol</code>/<code>TLS.MaxProtocol</code>
+to every connection with OpenSSL's <code>SSL_CONF</code> commands, the same commands the system OpenSSL takes
+from that file. A minimum below TLS 1.2 (LEGACY allows TLS 1.0) is raised to TLS 1.2; FUTURE's higher security
+level (3072-bit RSA and stronger signatures) applies as it does for the system OpenSSL. Groups: <code>[https]
+tls_groups</code> when set; otherwise the policy's groups with X25519MLKEM768 put first when the policy is not
+FIPS; RHEL 8's policies name no groups, so OpenSSL 3.5's own list is used, which offers X25519MLKEM768 first
+(with the FIPS policy: P-256, P-384 and P-521 only). A setting OpenSSL 3.5 does not take is listed by
+<code>drra selftest</code> and in the service log, not dropped silently.</li>
 <li><b>Feeds:</b> the OVAL feed (RHEL 8 and 9) comes from Red Hat over HTTPS, and the RHEL 10 CSAF/VEX index
 from the report server's <code>vex_index.php</code> over the same TLS settings. Neither is signed by the agent's
 protocol: their integrity rests on TLS and on the server.</li>
@@ -292,14 +303,15 @@ server's configuration, not the agent's (section 12).</li>
 <p>The agent is not a validated cryptographic module and makes no FIPS claim of its own. Its cryptography is
 done by OpenSSL and, on the server, by PHP's OpenSSL extension:</p>
 <ul>
-<li><b>RHEL 8 FIPS build:</b> uses RHEL 8's own OpenSSL 1.1.1, which runs in FIPS mode when the host is in FIPS
+<li><b>RHEL 8 <code>linux_reporting_agent</code> package:</b> uses RHEL 8's own OpenSSL 1.1.1, which runs in FIPS mode when the host is in FIPS
 mode (<code>drra selftest</code> shows <code>OpenSSL FIPS: on</code>), under the host's FIPS crypto policy. Red
 Hat has had RHEL 8's OpenSSL module validated under FIPS 140; check the certificate that covers your minor
 release and package version on Red Hat's compliance pages or the NIST CMVP list.</li>
-<li><b>RHEL 8 standard build:</b> its built-in OpenSSL 3.5.9 is not FIPS validated. It refuses to run when
-<code>/proc/sys/crypto/fips_enabled</code> is 1: it logs why and exits with status 78, which systemd does not
-restart (<code>RestartPreventExitStatus=78</code>). Installing the RPM on a host in FIPS mode picks the FIPS
-build.</li>
+<li><b>RHEL 8 <code>linux_reporting_agent-openssl35</code> package:</b> its built-in OpenSSL 3.5.9 is not FIPS
+validated. Its <code>%pre</code> refuses to install it when <code>/proc/sys/crypto/fips_enabled</code> is 1, and if
+FIPS mode is turned on later it refuses to run: it logs why and exits with status 78, which systemd does not
+restart (<code>RestartPreventExitStatus=78</code>). Hosts in FIPS mode use the <code>linux_reporting_agent</code>
+package.</li>
 <li><b>RHEL 9 and 10:</b> use the system OpenSSL, which in FIPS mode uses Red Hat's FIPS provider. Whether the
 provider version on a given minor release has a CMVP certificate, or is still in process, is Red Hat's to
 state: check it before relying on FIPS mode.</li>
@@ -332,8 +344,8 @@ administrator deletes it: check fingerprints before approving.</li>
 <code>DATA_DIR</code>.</li>
 <li>The replay check depends on the clocks: a server whose clock is far off refuses good reports
 (<code>bad_timestamp</code>), and the fix is the clock, not a larger window.</li>
-<li>The RHEL 8 standard build's OpenSSL and libcurl are built in: their security fixes come with new agent
-releases, not with <code>dnf update openssl</code>. The FIPS build and the RHEL 9 and 10 builds get them from
+<li>The RHEL 8 openssl35 package's OpenSSL and libcurl are built in: their security fixes come with new agent
+releases, not with <code>dnf update openssl</code>. The <code>linux_reporting_agent</code> packages get them from
 Red Hat.</li>
 <li>The agent's own security updates come with new releases; it does not update itself.</li>
 </ul>
@@ -357,8 +369,8 @@ What each build offers, as tested on 11/18/2026 against a server that offers the
 <div class="fc-table">
 <table>
 <tr><td><b>Build</b></td><td><b>Offers</b></td><td><b>Key exchange in the test</b></td></tr>
-<tr><td>RHEL 8 standard</td><td><code>X25519MLKEM768</code>, then <code>X25519</code>, <code>P-256</code> (built-in default)</td><td>X25519MLKEM768</td></tr>
-<tr><td>RHEL 8 FIPS</td><td>RHEL 8's OpenSSL 1.1.1 has no ML-KEM; classical groups of the crypto policy</td><td>X25519 (FIPS mode: P-256)</td></tr>
+<tr><td>RHEL 8 <code>linux_reporting_agent-openssl35</code></td><td><code>X25519MLKEM768</code> first, then the classical groups (OpenSSL 3.5 defaults under the crypto policy)</td><td>X25519MLKEM768</td></tr>
+<tr><td>RHEL 8 <code>linux_reporting_agent</code></td><td>RHEL 8's OpenSSL 1.1.1 has no ML-KEM; classical groups of the crypto policy</td><td>X25519 (FIPS mode: P-256)</td></tr>
 <tr><td>RHEL 9 (9.8, OpenSSL 3.5.8)</td><td>The DEFAULT crypto policy does not offer ML-KEM. With <code>[https] tls_groups=X25519MLKEM768:X25519:P-256</code> it does.</td><td>x25519 by default; X25519MLKEM768 with that setting</td></tr>
 <tr><td>RHEL 10 (10.2, OpenSSL 3.5.8)</td><td>The DEFAULT crypto policy offers ML-KEM first</td><td>X25519MLKEM768</td></tr>
 </table>
@@ -381,18 +393,18 @@ TLS certificate (RSA or elliptic-curve, from the public certificate authorities)
 and the SSH and SMB key exchange of SCP and CIFS delivery.</li>
 <li><b>Standards, stated plainly:</b> the agent is not CNSA 2.0 compliant. CNSA 2.0 calls for ML-KEM-1024 and
 ML-DSA signatures; this release uses ML-KEM-768 in a hybrid with X25519, which is the TLS hybrid group used by
-current browsers and servers, and RSA signatures. The FIPS build has no post-quantum algorithm, because RHEL
-8's FIPS OpenSSL has none.</li>
+current browsers and servers, and RSA signatures. The RHEL 8 <code>linux_reporting_agent</code> package has no
+post-quantum algorithm, because RHEL 8's FIPS OpenSSL has none.</li>
 <li><b>Moving on:</b> a later release is planned to sign with ML-DSA (NIST FIPS 204) once PHP's OpenSSL
 extension on report servers can verify it, with a new registration for each host. RHEL 8's FIPS OpenSSL 1.1.1
-will not get ML-DSA, so the RHEL 8 FIPS build keeps RSA.</li>
+will not get ML-DSA, so the RHEL 8 <code>linux_reporting_agent</code> package keeps RSA.</li>
 </ul>
 
 <h2 id="ai">13. AI-assisted use</h2>
 <p>The <a href="https://datareel.com/linux_reporting_agent/ai_assisted_guide.php">AI-assisted guide</a> (<code>AGENTS.md</code>) keeps
 an AI agent away from every secret on this page: it never reads the enrollment token, the agent's private
 key, a share login, an SCP key, <code>server.ini</code> or the admin passwords, never suggests copying the key,
-weakening a check, turning FIPS mode on or off or running the standard build in FIPS mode, and never approves
+weakening a check, turning FIPS mode on or off or running the openssl35 package in FIPS mode, and never approves
 a host without the fingerprint check. People run or approve every step.</p>
 
 <h2 id="report">14. Reporting a security issue</h2>

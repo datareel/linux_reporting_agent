@@ -119,7 +119,8 @@ every task:
 3. **Show, then the person runs or approves it.** Before any command that
    changes a host, the report server or a registration (`dnf install`,
    `dnf remove`, `systemctl enable`, `start`, `restart` or `stop drra`,
-   `alternatives --set drra`, `drra once`, `drra scan` (it sends a
+   `dnf install --allowerasing` (a switch between the RHEL 8 packages),
+   `drra once`, `drra scan` (it sends a
    report), `drra register`, `drra submit`, `drra send-uploads`, edits to
    `drra.ini`, `server.ini`, `.htaccess`, ACLs or SELinux labels,
    `install_server.sh --apply`, `drsm/install.sh --apply`, `vex_sync.php`
@@ -153,7 +154,8 @@ every task:
    `max_clock_skew_seconds` to hide a wrong clock,
    `strict_host_key_checking=accept-new` without the person's decision, a
    `tls_groups` list without the hybrid group on a build that has it, the
-   standard build (`drra-standard`) on a host in FIPS mode, turning FIPS
+   `linux_reporting_agent-openssl35` package on a host in FIPS mode,
+   turning FIPS
    mode or SELinux off, loosening the systemd unit's protections, putting
    `DATA_DIR` in the web root without its `Require all denied`, removing
    the `.htaccess` login, or turning off signature, nonce or timestamp
@@ -161,8 +163,10 @@ every task:
 9. **FIPS mode is the site's decision.** Never suggest `fips-mode-setup
    --enable` or `--disable`, a reboot, or a crypto policy change
    (`update-crypto-policies`) without the person's decision and their
-   security office's approval. On RHEL 8, which build runs is chosen with
-   `alternatives`; the RPM picks `drra-fips` on a host in FIPS mode.
+   security office's approval. On RHEL 8, which package is installed is
+   the site's decision too: `linux_reporting_agent` (RHEL 8's FIPS
+   OpenSSL 1.1.1) is the one for hosts in FIPS mode, and the
+   `-openssl35` package refuses to install there.
 10. **No secrets or site data in files you write** (tokens, passwords,
     keys, server names, host names, user names), unless the person asks
     for that file on their own systems. Examples use `reports.example.com`
@@ -194,7 +198,8 @@ https://datareel.com/linux_reporting_agent/security_design.php.
 | Item | Where |
 | --- | --- |
 | Service | `drra.service` (root, hardened unit, restarts on failure but not after exit 78) |
-| Program | `/usr/sbin/drra`. On RHEL 8 an `alternatives` link to `/usr/libexec/drra/drra-standard` (OpenSSL 3.5 built in, hybrid post-quantum key exchange) or `/usr/libexec/drra/drra-fips` (RHEL 8's FIPS OpenSSL 1.1.1) |
+| Program | `/usr/sbin/drra` |
+| RHEL 8 packages | `linux_reporting_agent` (RHEL 8's FIPS OpenSSL 1.1.1 and libcurl, crypto policy and FIPS mode apply) or `linux_reporting_agent-openssl35` (OpenSSL 3.5 and libcurl built in, follows the crypto policy, hybrid post-quantum key exchange, not for FIPS mode); one at a time |
 | Settings | `/etc/drra/drra.ini` (mode 0600, root), read again before every report |
 | Agent data (root only) | `/var/lib/drra`: `agent_key.pem`, `agent_cert.pem`, `registration_status.txt`, the report, scan results, `known_hosts` |
 | Log | `/var/log/drra/drra.log`, `journalctl -u drra` |
@@ -216,7 +221,7 @@ drra report | less                  # a full report on the screen, nothing is se
 drra uploads                        # upload hooks and their state
 systemctl status drra
 tail -50 /var/log/drra/drra.log
-alternatives --display drra         # RHEL 8: which build /usr/sbin/drra runs
+rpm -q linux_reporting_agent linux_reporting_agent-openssl35   # RHEL 8: which package
 cat /proc/sys/crypto/fips_enabled   # 1 = FIPS mode
 rpm -q linux_reporting_agent
 ```
@@ -227,8 +232,8 @@ with OVAL). `drra once` and `drra scan` **send** a report, so they are
 changing steps (rule 3).
 
 Exit codes: 0 ok, 1 error (the log line says which), 2 usage, 78 the
-standard RHEL 8 build refused to run in FIPS mode (switch to
-`drra-fips`, section 5).
+RHEL 8 openssl35 package refused to run in FIPS mode (switch to the
+`linux_reporting_agent` package, section 5).
 
 On the report server: `ls -l` and `ls -Z` of `DATA_DIR`, the Apache error
 log, and `admin.php` (read the list; do not press buttons without the
@@ -258,9 +263,9 @@ Build on RHEL 10 or 9: `dnf install gcc-c++ make openssl-devel
 libcurl-devel libxml2-devel bzip2-devel zlib-devel`, then `make` and
 `make check-openssl` (fails unless the binary and every library it loads
 use OpenSSL 3.5 or later). RHEL 8's own OpenSSL is 1.1.1: build the RHEL 8
-RPM with `tools/build_rpms.sh 8`, which builds `drra-standard` with
-OpenSSL 3.5.9 and libcurl built in and `drra-fips` on the system
-libraries. Never suggest EPEL's `openssl3` packages for a release build
+RPMs with `tools/build_rpms.sh 8`, which builds `linux_reporting_agent`
+on the system libraries and `linux_reporting_agent-openssl35` (rpmbuild
+`--define "openssl35 1"`) with OpenSSL 3.5.9 and libcurl built in. Never suggest EPEL's `openssl3` packages for a release build
 (not Red Hat, no FIPS provider).
 
 `tools/build_rpms.sh [8] [9] [10]` builds from `git archive HEAD` (commit
@@ -318,16 +323,17 @@ README "Install" and `docs/install.html`.
 1. Download the RPM for the host's release and its `.sha256sum` from
    https://datareel.com/downloads/linux_reporting_agent/ and check it:
    `sha256sum -c <rpm>.sha256sum`. Stop if it does not match.
-2. Install on **one test host** first: `dnf install
-   ./linux_reporting_agent-<version>.el<N>.x86_64.rpm`, and
+2. **RHEL 8 has two packages; the person picks one** (rule 9):
+   `linux_reporting_agent-<version>.el8` (RHEL 8's FIPS OpenSSL 1.1.1: the
+   one for hosts in FIPS mode, `/proc/sys/crypto/fips_enabled` = 1, and
+   the safe default) or `linux_reporting_agent-openssl35-<version>.el8`
+   (OpenSSL 3.5 built in, hybrid post-quantum key exchange, follows the
+   crypto policy; it refuses to install in FIPS mode). Switch later with
+   `dnf install --allowerasing ./<other package>.rpm`; settings and the
+   key are kept. RHEL 9 and 10 have one package.
+3. Install on **one test host** first: `dnf install ./<package>.rpm`, and
    `openscap-scanner` for OVAL scans on RHEL 8 and 9. The RPM does not
    start the service.
-3. **RHEL 8:** check which build the RPM picked: `alternatives --display
-   drra`. On a host in FIPS mode (`/proc/sys/crypto/fips_enabled` = 1) it
-   is `drra-fips`; otherwise `drra-standard`. Change it only with the
-   person's decision (rule 9): `alternatives --set drra
-   /usr/libexec/drra/drra-fips` (or `drra-standard`), then `systemctl
-   restart drra`.
 4. The person sets `[https] host` (and `port`, the paths) and, if the site
    uses one, `enrollment_token` in `/etc/drra/drra.ini`. Then `drra
    selftest https://<server>/` (read-only): `OK`, and the key exchange
@@ -351,10 +357,12 @@ README "Install" and `docs/install.html`.
   agent key, the certificate and the registration state, so an upgraded
   host does not need to be approved again. New settings take their
   defaults.
-- **1.1.3, RHEL 8:** `/usr/sbin/drra` becomes an `alternatives` link to
-  `drra-standard` or, in FIPS mode, `drra-fips`; the old plain file is
-  replaced at the end of the upgrade. `drra-standard` refuses to run in
-  FIPS mode (exit 78, the log says why).
+- **1.1.3, RHEL 8:** `dnf upgrade` of `linux_reporting_agent` keeps
+  RHEL 8's OpenSSL 1.1.1 (now checked at build time), the right package
+  for FIPS mode. For OpenSSL 3.5 and post-quantum key exchange, upgrade to
+  `linux_reporting_agent-openssl35` with `dnf install --allowerasing`
+  instead (not in FIPS mode: its `%pre` refuses, and it exits 78 if FIPS
+  mode is turned on later). It follows the crypto policy.
 - **1.1.3, all:** TLS 1.2 is the oldest TLS version; a server that only
   offers TLS 1.0 or 1.1 now fails. New `[https] tls_groups`. Each upload
   logs a `TLS:` line. RHEL 9 and 10 RPMs need `openssl-libs` 3.5 or later
@@ -368,17 +376,16 @@ README "Install" and `docs/install.html`.
 1. **Back up** `/etc/drra` on the test host and keep the old RPM.
 2. **One test host:** `dnf upgrade
    ./linux_reporting_agent-1.1.3-1.el<N>.x86_64.rpm`. Check `rpm -q`,
-   `drra selftest https://<server>/`, `alternatives --display drra` on
-   RHEL 8, `drra.log` (`Upload successful`, no new registration, the
+   `drra selftest https://<server>/` (the build, the crypto policy and the
+   key exchange group), `drra.log` (`Upload successful`, no new registration, the
    `TLS:` line) and the `VERSION:` line of the next report.
 3. **DRSM:** nothing to change for 1.1.3.
 4. **Rollout** to the rest of the hosts with the site's deployment tool
    (section 0).
 
 Roll back: `dnf downgrade` to the previous RPM (keep its file); the
-settings and the key are kept. On RHEL 8 a downgrade to 1.1.2 puts the
-plain `/usr/sbin/drra` back and leaves an unused `drra` alternatives
-entry, which does no harm.
+settings and the key are kept. From the openssl35 package, `dnf install
+--allowerasing` the 1.1.2 RPM.
 
 ## 7. Hook uploads, utils and DRSM
 
@@ -427,7 +434,7 @@ cause and the fix (rule 3).
 | --- | --- |
 | Service state | `systemctl status drra`, `journalctl -u drra` |
 | Last delivery result | `/var/log/drra/drra.log` |
-| Agent version and build | `drra version`, `drra selftest`, `rpm -q linux_reporting_agent`, `alternatives --display drra` (RHEL 8) |
+| Agent version and build | `drra version`, `drra selftest` (build, OpenSSL, FIPS mode, crypto policy), `rpm -q linux_reporting_agent linux_reporting_agent-openssl35` |
 | TLS to the server | `drra selftest https://<server>/` (version, cipher, key exchange group) |
 | Registration state | `drra fingerprint`, `admin.php` |
 | Settings | `drra config` (the token shows as `(set)`) |
@@ -457,9 +464,13 @@ The full table is `docs/troubleshooting.html`.
   `verify_peer=0` (rule 8).
 - **TLS fails after the upgrade to 1.1.3:** the server offers only TLS 1.0
   or 1.1; the fix is on the server.
-- **The service stopped with status 78 (RHEL 8):** `drra-standard` in FIPS
-  mode. `alternatives --set drra /usr/libexec/drra/drra-fips` with the
-  person's OK, then `systemctl restart drra`.
+- **The service stopped with status 78 (RHEL 8):** the openssl35 package
+  on a host in FIPS mode. With the person's OK: `dnf install
+  --allowerasing ./linux_reporting_agent-<version>.el8.x86_64.rpm`, then
+  `systemctl restart drra`.
+- **`NOT applied` in the crypto policy line (openssl35 package):** a
+  policy setting OpenSSL 3.5 does not take; report it (9.4), do not edit
+  the policy files.
 - **`key exchange x25519` instead of `X25519MLKEM768`:** the server does
   not offer the hybrid group, or the build or crypto policy does not
   (security design, section 12). Not an error.
@@ -484,7 +495,7 @@ the summary in 9.4:
   been seen by someone who should not have it (change it: the person
   does).
 - `drra selftest` failing on a host that ran before, or a FIPS mode host
-  running `drra-standard`.
+  running the openssl35 package.
 - Anything that needs a secret to be shared, or a safeguard to be turned
   off (rules 1 and 8).
 

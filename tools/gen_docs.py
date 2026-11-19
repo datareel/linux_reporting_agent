@@ -211,7 +211,7 @@ page("index.html", "Overview",
   <li><code>README.md</code> in the source code covers the same ground as plain text, and is installed in <code>/usr/share/doc/linux_reporting_agent</code>.</li>
   <li><code>/etc/drra/drra.ini</code> describes every agent setting, and <code>php/server.ini.example</code> every server setting.</li>
   <li><code>drra help</code> lists the commands.</li>
-  <li><a href="security_design.html">Security design</a> (<code>docs/security_design.html</code>), the white paper: the host key, registration and approval, signed uploads, TLS and the RHEL 8 standard and FIPS builds, the server checks, cryptography and FIPS, quantum computing and the limits</li>
+  <li><a href="security_design.html">Security design</a> (<code>docs/security_design.html</code>), the white paper: the host key, registration and approval, signed uploads, TLS, the two RHEL 8 packages and the crypto policy, the server checks, cryptography and FIPS, quantum computing and the limits</li>
   <li><code>AGENTS.md</code> (with <code>CLAUDE.md</code> and <code>GEMINI.md</code>), the <a href="https://datareel.com/linux_reporting_agent/ai_assisted_guide.php">AI-assisted guide</a>: how an approved enterprise AI agent assists your administrators with the report server, installs, approvals, upgrades and support, with people running or approving every step. Installed with the RPM in <code>/usr/share/doc/linux_reporting_agent</code>.</li>
 </ul>
 """)
@@ -219,7 +219,7 @@ page("index.html", "Overview",
 # ---------------------------------------------------------------- install
 page("install.html", "Install the agent",
      "Install the DataReel Reporting Agent for Linux RPM on RHEL 8, 9 or 10, set the report server, and start the service.",
-     [("needs", "What you need"), ("rpm", "Install the RPM"), ("settings", "Set the server"), ("start", "Start the service"), ("commands", "Commands"), ("files", "Installed files"), ("upgrade", "Upgrade and remove"), ("rhel8", "RHEL 8: standard and FIPS builds")],
+     [("needs", "What you need"), ("rpm", "Install the RPM"), ("settings", "Set the server"), ("start", "Start the service"), ("commands", "Commands"), ("files", "Installed files"), ("upgrade", "Upgrade and remove"), ("rhel8", "RHEL 8: two packages")],
      """
 <h1>Install the agent</h1>
 <p class="lead">The agent comes as an RPM for RHEL 8, 9 and 10 (and rebuilds such as Rocky Linux, AlmaLinux and Oracle Linux) for x86_64.</p>
@@ -227,7 +227,7 @@ page("install.html", "Install the agent",
 <h2 id="needs">What you need</h2>
 <ul>
   <li>RHEL 8, 9 or 10, x86_64, with systemd.</li>
-  <li>RHEL 9 and 10: OpenSSL 3.5 or later (<code>dnf update openssl-libs</code> on older minor releases). RHEL 8 needs nothing extra: see <a href="#rhel8">RHEL 8: standard and FIPS builds</a>.</li>
+  <li>RHEL 9 and 10: OpenSSL 3.5 or later (<code>dnf update openssl-libs</code> on older minor releases). RHEL 8 needs nothing extra: see <a href="#rhel8">RHEL 8: two packages</a>.</li>
   <li>A report server with the PHP pages, see <a href="server.html">Set up the report server</a>, and its enrollment token if you use one.</li>
   <li>Outgoing HTTPS (port 443) to the report server. Nothing needs to connect to the host.</li>
   <li>For vulnerability scans on RHEL 8 and 9: <code>openscap-scanner</code>. For compliance scans: <code>scap-security-guide</code>.</li>
@@ -271,7 +271,7 @@ page("install.html", "Install the agent",
     ["<code>drra register</code>", "Registers the agent certificate with the report server"],
     ["<code>drra fingerprint</code>", "Prints the agent key fingerprint to check on the admin page"],
     ["<code>drra config</code>", "Prints the settings in use"],
-    ["<code>drra selftest [URL]</code>", "Prints the build, OpenSSL, libcurl and FIPS mode and checks them; with a URL, connects and prints the TLS version, cipher and key exchange group"],
+    ["<code>drra selftest [URL]</code>", "Prints the build, OpenSSL, libcurl, FIPS mode and (RHEL 8 openssl35 package) the crypto policy, and checks them; with a URL, connects and prints the TLS version, cipher and key exchange group"],
     ["<code>drra version</code>", "Prints the version"],
 ]) + """
 <p><code>-c &lt;ini file&gt;</code> uses another settings file, for example to test against a development server.</p>
@@ -292,17 +292,18 @@ page("install.html", "Install the agent",
 <h2 id="upgrade">Upgrade and remove</h2>
 <p><code>dnf install</code> a newer RPM to upgrade: the service restarts and <code>drra.ini</code>, the key and the registration stay. <code>dnf remove linux_reporting_agent</code> stops and removes the service; <code>/var/lib/drra</code> and <code>/var/log/drra</code> stay until you delete them. Delete the host on the admin page too, or a reinstall with a new key gets <code>key_mismatch</code>.</p>
 
-<h2 id="rhel8">RHEL 8: standard and FIPS builds</h2>
-<p>RHEL 8's own OpenSSL is 1.1.1, so the RHEL 8 RPM has two builds of the agent, and <code>/usr/sbin/drra</code> is an <code>alternatives</code> link to one of them:</p>
-""" + table(["Build", "OpenSSL", "Use it when"], [
-    ["<code>/usr/libexec/drra/drra-standard</code>", "OpenSSL 3.5 and libcurl built in. Hybrid post-quantum key exchange: X25519MLKEM768 first, then X25519 and P-256 for servers without it. Not FIPS validated.", "The host is not in FIPS mode (the default)"],
-    ["<code>/usr/libexec/drra/drra-fips</code>", "RHEL 8's own OpenSSL 1.1.1 and libcurl, so the crypto policy and FIPS mode apply. No ML-KEM.", "The host is in FIPS mode"],
+<h2 id="rhel8">RHEL 8: two packages</h2>
+<p>RHEL 8's own OpenSSL is 1.1.1, so RHEL 8 has two packages, like DataReel's other products. Install one of them:</p>
+""" + table(["Package", "OpenSSL", "Use it when"], [
+    ["<code>linux_reporting_agent-&lt;version&gt;.el8</code>", "RHEL 8's own OpenSSL 1.1.1 and libcurl, so the crypto policy and FIPS mode apply. No ML-KEM.", "The host is in FIPS mode, or must use Red Hat's FIPS validated OpenSSL"],
+    ["<code>linux_reporting_agent-openssl35-&lt;version&gt;.el8</code>", "OpenSSL 3.5 and libcurl built in. Follows the system crypto policy (ciphers, signature algorithms, TLS versions, never below TLS 1.2). Hybrid post-quantum key exchange: X25519MLKEM768 first, then X25519 and P-256 and the other classical groups. Not FIPS validated.", "The host is not in FIPS mode and should get post-quantum TLS"],
 ]) + """
-<p>Installing picks <code>drra-fips</code> when <code>/proc/sys/crypto/fips_enabled</code> is 1. The standard build will not run in FIPS mode: it logs why and exits with status 78, which systemd does not restart. Switch builds with:</p>
-""" + code([("#", "alternatives --set drra /usr/libexec/drra/drra-fips       # or drra-standard"),
+<p>The openssl35 package provides <code>linux_reporting_agent</code> and conflicts with it. Its <code>%pre</code> refuses to install it on a host in FIPS mode (<code>/proc/sys/crypto/fips_enabled</code> is 1), and if FIPS mode is turned on later it refuses to run: it logs why and exits with status 78, which systemd does not restart. Switch between the packages with <code>dnf install --allowerasing</code>; the settings, the key and the registration are kept:</p>
+""" + code([("#", "dnf install --allowerasing ./linux_reporting_agent-openssl35-1.1.3-1.el8.x86_64.rpm   # or the other one"),
             ("#", "systemctl restart drra"),
-            ("#", "drra selftest https://your.server/                        # build, OpenSSL, TLS key exchange")]) + """
-<p>The bundled OpenSSL gets security fixes with new agent releases, not from <code>dnf update openssl</code>. The FIPS build gets them from Red Hat.</p>
+            ("#", "drra selftest https://your.server/       # build, OpenSSL, crypto policy, TLS key exchange")]) + """
+<p>How the openssl35 package follows the crypto policy: it reads <code>/etc/crypto-policies/back-ends/opensslcnf.config</code> and applies <code>CipherString</code>, <code>Ciphersuites</code>, <code>SignatureAlgorithms</code> and <code>TLS.MinProtocol</code>/<code>TLS.MaxProtocol</code> to every connection (a minimum below TLS 1.2, as in LEGACY, is raised to TLS 1.2). Groups: <code>[https] tls_groups</code> when set; otherwise the policy's groups with X25519MLKEM768 first when the policy is not FIPS; RHEL 8's policies name no groups, so OpenSSL 3.5's own list is used, with X25519MLKEM768 first (with the FIPS policy: P-256, P-384 and P-521 only). <code>drra selftest</code> and the service log show the policy and any setting OpenSSL 3.5 did not take.</p>
+<p>The bundled OpenSSL gets security fixes with new agent releases, not from <code>dnf update openssl</code>. The <code>linux_reporting_agent</code> package gets them from Red Hat.</p>
 """)
 
 # ---------------------------------------------------------------- server
@@ -431,7 +432,7 @@ page("configuration.html", "Configuration",
     ("use_https", "1", "0 = plain HTTP, only for a test server"),
     ("verify_peer", "1", "Check the server certificate and host name. 0 only for a test server; use <code>ca_file</code> for a private CA."),
     ("ca_file", "empty", "CA bundle (PEM) for a private CA; empty uses the system trust store"),
-    ("tls_groups", "empty", "TLS key exchange groups in order, such as <code>X25519MLKEM768:X25519:P-256</code>. Empty uses the build's default: that list for the RHEL 8 standard build, OpenSSL and the crypto policy otherwise. The RHEL 8 FIPS build cannot set groups."),
+    ("tls_groups", "empty", "TLS key exchange groups in order, such as <code>X25519MLKEM768:X25519:P-256</code>. Empty follows the crypto policy: the RHEL 8 openssl35 package offers X25519MLKEM768 first unless the policy is FIPS; other packages use OpenSSL's and the policy's defaults (RHEL 9 needs this setting for X25519MLKEM768). The RHEL 8 <code>linux_reporting_agent</code> package cannot set groups."),
     ("timeout_seconds", "60", "Seconds before an upload is given up"),
 ]) + """
 
@@ -660,7 +661,7 @@ page("security.html", "Security",
 <p>Each upload carries the report's SHA-256 hash (and the hash of each HTML report or hook file), the host name, a time stamp and a nonce, signed with RSA PKCS#1 v1.5 and SHA-256. The server checks the signature against the registered certificate, refuses agents that are not approved, refuses a time stamp more than <code>max_clock_skew_seconds</code> (300) from its clock, and refuses a nonce it has seen, so a captured upload cannot be sent again.</p>
 
 <h2 id="tls">TLS</h2>
-<p>Uploads use HTTPS through libcurl and OpenSSL (3.5 or later; RHEL 8's 1.1.1 in the RHEL 8 FIPS build), TLS 1.2 or 1.3, with certificate and host name checks against the system trust store, or <code>ca_file</code> for a private CA. The RHEL 8 standard build offers hybrid post-quantum key exchange (X25519MLKEM768, then X25519 and P-256). RHEL 10's default crypto policy offers it too; on RHEL 9 set <code>[https] tls_groups=X25519MLKEM768:X25519:P-256</code> to offer it. The hybrid group is used only when the report server offers it as well; otherwise the connection falls back to X25519 or P-256 (see <a href="security_design.html#quantum">Quantum computing</a> in the white paper). The RHEL 8 FIPS build uses RHEL 8's OpenSSL 1.1.1 for FIPS mode (see <a href="install.html#rhel8">Install</a>). The log line of each upload names the TLS version, cipher and key exchange group. <code>verify_peer=0</code> and <code>use_https=0</code> exist for test servers only.</p>
+<p>Uploads use HTTPS through libcurl and OpenSSL (3.5 or later; RHEL 8's 1.1.1 in the RHEL 8 <code>linux_reporting_agent</code> package), TLS 1.2 or 1.3, with certificate and host name checks against the system trust store, or <code>ca_file</code> for a private CA. The RHEL 8 openssl35 package offers hybrid post-quantum key exchange (X25519MLKEM768 first) and follows the crypto policy. RHEL 10's default crypto policy offers it too; on RHEL 9 set <code>[https] tls_groups=X25519MLKEM768:X25519:P-256</code> to offer it. The hybrid group is used only when the report server offers it as well; otherwise the connection falls back to X25519 or P-256 (see <a href="security_design.html#quantum">Quantum computing</a> in the white paper). The RHEL 8 <code>linux_reporting_agent</code> package uses RHEL 8's OpenSSL 1.1.1 for FIPS mode (see <a href="install.html#rhel8">Install</a>). The log line of each upload names the TLS version, cipher and key exchange group. <code>verify_peer=0</code> and <code>use_https=0</code> exist for test servers only.</p>
 
 <h2 id="service">The service</h2>
 <p>The agent runs as root to read the package database, SELinux, firewalld and sshd settings and the DMI serial number. The systemd unit makes <code>/usr</code>, <code>/boot</code> and <code>/etc</code> read only, home folders read only, <code>/tmp</code> private, and sets <code>NoNewPrivileges</code>, kernel tunable and module protection, at low CPU and I/O priority. Files the agent writes are private to root. Report hooks run only from root owned, not group or world writable files, and can run as another user.</p>
@@ -687,11 +688,11 @@ page("building.html", "Build from source",
      [("needs", "What you need"), ("make", "Build with make"), ("rpms", "Build the RPMs"), ("tests", "Tests"), ("files", "Source files")],
      """
 <h1>Build from source</h1>
-<p class="lead">The agent is plain C++17 with OpenSSL, libcurl, libxml2, bzip2 and zlib. RHEL 9 and 10 builds use the system OpenSSL, 3.5 or later. The RHEL 8 RPM has a standard build with OpenSSL 3.5 and libcurl built in and a FIPS build on RHEL 8's own OpenSSL 1.1.1 (see <a href="install.html#rhel8">Install</a>).</p>
+<p class="lead">The agent is plain C++17 with OpenSSL, libcurl, libxml2, bzip2 and zlib. RHEL 9 and 10 builds use the system OpenSSL, 3.5 or later. RHEL 8 has two packages: one on RHEL 8's own OpenSSL 1.1.1 and one with OpenSSL 3.5 and libcurl built in (see <a href="install.html#rhel8">Install</a>).</p>
 
 <h2 id="needs">What you need</h2>
 """ + code([("#", "dnf install gcc-c++ make openssl-devel libcurl-devel libxml2-devel bzip2-devel zlib-devel")]) + """
-<p>On RHEL 8 a plain <code>make</code> gives the FIPS style build on OpenSSL 1.1.1 (<code>make DEFINES=-DDRRA_FIPS_BUILD</code> marks it as one). For the standard build, build the RPM (below), or see the <code>%build</code> section of the spec file for <code>DEFINES</code>, <code>SSL_CFLAGS</code>, <code>SSL_LIBS</code>, <code>CURL_CFLAGS</code> and <code>CURL_LIBS</code>.</p>
+<p>On RHEL 8 a plain <code>make</code> builds on OpenSSL 1.1.1 (<code>make DEFINES=-DDRRA_FIPS_BUILD</code> is what the <code>linux_reporting_agent</code> package uses). For the openssl35 build, build the RPMs (below), or see the <code>%build</code> section of the spec file for <code>DEFINES</code>, <code>SSL_CFLAGS</code>, <code>SSL_LIBS</code>, <code>CURL_CFLAGS</code> and <code>CURL_LIBS</code>.</p>
 
 <h2 id="make">Build with make</h2>
 """ + code([("$", "wget https://datareel.com/downloads/linux_reporting_agent/linux_reporting_agent-1.1.3.tar.gz"),
@@ -699,18 +700,18 @@ page("building.html", "Build from source",
             ("$", "make"),
             ("#", "make install            # /usr/sbin/drra, /etc/drra, the systemd unit"),
             ("#", "systemctl daemon-reload")]) + """
-<p><code>make check-openssl</code> fails unless <code>drra</code> and every library it loads use OpenSSL 3.5 or later (<code>tools/check_openssl.sh --fips</code> checks a FIPS build for RHEL 8's OpenSSL 1.1.1), and runs <code>drra selftest</code>. <code>drra selftest https://your.server/</code> also prints the TLS version, cipher and key exchange group of a connection.</p>
+<p><code>make check-openssl</code> fails unless <code>drra</code> and every library it loads use OpenSSL 3.5 or later (<code>tools/check_openssl.sh --fips</code> checks the RHEL 8 <code>linux_reporting_agent</code> build for RHEL 8's OpenSSL 1.1.1), and runs <code>drra selftest</code>. <code>drra selftest https://your.server/</code> also prints the TLS version, cipher and key exchange group of a connection.</p>
 <p><code>make install</code> takes <code>DESTDIR</code>, <code>PREFIX</code>, <code>SYSCONFDIR</code> and <code>UNITDIR</code>. It overwrites <code>/etc/drra/drra.ini</code>: keep a copy of yours.</p>
 
 <h2 id="rpms">Build the RPMs</h2>
 """ + code([("$", "tools/build_rpms.sh")]) + """
-<p>Builds the source tarball and the RHEL 8, 9 and 10 RPMs in UBI containers with podman, into <code>output/</code>, with a <code>.sha256sum</code> file. The spec file is <code>rpm/linux_reporting_agent.spec</code>. The RHEL 8 build builds OpenSSL and libcurl for the standard build from their release tarballs, which it downloads once and checks against <code>tools/bundled.sha256</code>, and the FIPS build on the system libraries. Every RPM build runs <code>tools/check_openssl.sh</code> on each binary and fails if one has the wrong OpenSSL.</p>
+<p>Builds the source tarball and the RHEL 8, 9 and 10 RPMs in UBI containers with podman, into <code>output/</code>, with a <code>.sha256sum</code> file. The spec file is <code>rpm/linux_reporting_agent.spec</code>. On RHEL 8 it builds two packages: <code>linux_reporting_agent</code> on the system libraries, and <code>linux_reporting_agent-openssl35</code> (<code>rpmbuild --define "openssl35 1"</code>) with OpenSSL and libcurl built from their release tarballs, which it downloads once and checks against <code>tools/bundled.sha256</code>. Every RPM build runs <code>tools/check_openssl.sh</code> on each binary and fails if one has the wrong OpenSSL.</p>
 
 <h2 id="tests">Tests</h2>
 """ + code([("$", "tests/drsm_test.sh           # DRSM plugins and pages against a DRSM checkout"),
             ("$", "tests/uploads_test.sh        # hook uploads end to end with php -S"),
-            ("$", "tests/rpm_install_test.sh output/linux_reporting_agent-<new>.el8.x86_64.rpm [<old>.el8.x86_64.rpm]"),
-            ("", "                             # RHEL 8 RPM: standard or FIPS build picked, upgrade, removal")]) + """
+            ("$", "tests/rpm_install_test.sh <el8 rpm> <el8 openssl35 rpm> [<old>.el8.x86_64.rpm]"),
+            ("", "                             # RHEL 8 packages: FIPS mode, upgrade, switch, removal")]) + """
 <p><code>tools/build_rpms.sh</code> also scans every RPM and tarball it makes against a release blocklist kept outside the repository (<code>DRRA_RELEASE_BLOCKLIST</code>, default <code>~/.config/drra_release/blocklist.txt</code>: host names and domains that must never be published) and fails on a match or a missing list.</p>
 
 <h2 id="files">Source files</h2>
@@ -774,15 +775,15 @@ page("changelog.html", "What's new",
      [("v113", "Release 1.1.3"), ("v112", "Release 1.1.2"), ("v111", "Release 1.1.1"), ("v11", "Release 1.1"), ("v10b2", "Release 1.0 beta 2"), ("v10b1", "Release 1.0 beta 1")],
      """
 <h1>What's new</h1>
-<p class="lead">Release 1.1.3 brings OpenSSL 3.5 and post-quantum key exchange to RHEL 8, with a FIPS build for FIPS mode hosts. Release 1.1.2 fixes the advisory severity of RHEL 10 scans. Release 1.1.1 lets a scan run by hand update the dashboard. Release 1.1 is the first stable release of the DataReel Reporting Agent for Linux. It has everything from the two 1.0 betas: release 1.0 beta 2 added report hooks and hook uploads, and release 1.0 beta 1 was the first release.</p>
+<p class="lead">Release 1.1.3 brings OpenSSL 3.5 and post-quantum key exchange to RHEL 8, in a second RHEL 8 package that follows the crypto policy. Release 1.1.2 fixes the advisory severity of RHEL 10 scans. Release 1.1.1 lets a scan run by hand update the dashboard. Release 1.1 is the first stable release of the DataReel Reporting Agent for Linux. It has everything from the two 1.0 betas: release 1.0 beta 2 added report hooks and hook uploads, and release 1.0 beta 1 was the first release.</p>
 
 <h2 id="v113">Release 1.1.3 <span class="badge new">November 2026</span></h2>
 <ul>
-  <li><strong>RHEL 8 standard and FIPS builds:</strong> the RHEL 8 RPM has <code>drra-standard</code>, with OpenSSL 3.5.9 and libcurl 8.23.0 built in and hybrid post-quantum key exchange (X25519MLKEM768, then X25519 and P-256), and <code>drra-fips</code> on RHEL 8's own OpenSSL 1.1.1, which follows the crypto policy and FIPS mode. Installing picks the FIPS build in FIPS mode; the standard build will not run in FIPS mode. See <a href="install.html#rhel8">Install</a>.</li>
+  <li><strong>Two RHEL 8 packages,</strong> like DataReel's other products: <code>linux_reporting_agent</code> on RHEL 8's own OpenSSL 1.1.1, which follows the crypto policy and FIPS mode, and <code>linux_reporting_agent-openssl35</code>, with OpenSSL 3.5.9 and libcurl 8.23.0 built in, hybrid post-quantum key exchange (X25519MLKEM768 first) and the system crypto policy applied to its own OpenSSL. The openssl35 package will not install or run in FIPS mode. Switch with <code>dnf install --allowerasing</code>. See <a href="install.html#rhel8">Install</a>.</li>
   <li>The RHEL 9 and 10 RPMs need <code>openssl-libs</code> 3.5 or later.</li>
   <li><strong>TLS 1.2 or later</strong> for every connection, whatever the host's crypto policy allows. <code>[https] tls_groups</code> sets the key exchange groups.</li>
   <li>The log line of each upload and registration names the TLS version, cipher and key exchange group.</li>
-  <li><strong><code>drra selftest [URL]</code>:</strong> the build, OpenSSL, libcurl and FIPS mode and, with a URL, the TLS version, cipher and key exchange group of a test connection.</li>
+  <li><strong><code>drra selftest [URL]</code>:</strong> the build, OpenSSL, libcurl, FIPS mode and crypto policy and, with a URL, the TLS version, cipher and key exchange group of a test connection.</li>
   <li>The RPM build fails unless each binary uses the OpenSSL it must (<code>tools/check_openssl.sh</code>, <code>make check-openssl</code>).</li>
   <li><strong>Security design white paper and AI-assisted guide:</strong> <a href="security_design.html">docs/security_design.html</a> describes the trust between the parts, every server check, TLS and the two RHEL 8 builds, cryptography and FIPS, quantum computing (what is and is not quantum-resistant) and the limits. <code>AGENTS.md</code>, with <code>CLAUDE.md</code> and <code>GEMINI.md</code>, is the <a href="https://datareel.com/linux_reporting_agent/ai_assisted_guide.php">AI-assisted guide</a>. The RPM installs them in <code>/usr/share/doc/linux_reporting_agent</code>.</li>
 </ul>

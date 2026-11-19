@@ -27,15 +27,15 @@
   </nav>
   <main class="content" id="main">
 <h1>What's new</h1>
-<p class="lead">Release 1.1.3 brings OpenSSL 3.5 and post-quantum key exchange to RHEL 8, with a FIPS build for FIPS mode hosts. Release 1.1.2 fixes the advisory severity of RHEL 10 scans. Release 1.1.1 lets a scan run by hand update the dashboard. Release 1.1 is the first stable release of the DataReel Reporting Agent for Linux. It has everything from the two 1.0 betas: release 1.0 beta 2 added report hooks and hook uploads, and release 1.0 beta 1 was the first release.</p>
+<p class="lead">Release 1.1.3 brings OpenSSL 3.5 and post-quantum key exchange to RHEL 8, in a second RHEL 8 package that follows the crypto policy. Release 1.1.2 fixes the advisory severity of RHEL 10 scans. Release 1.1.1 lets a scan run by hand update the dashboard. Release 1.1 is the first stable release of the DataReel Reporting Agent for Linux. It has everything from the two 1.0 betas: release 1.0 beta 2 added report hooks and hook uploads, and release 1.0 beta 1 was the first release.</p>
 
 <h2 id="v113">Release 1.1.3 <span class="badge new">November 2026</span></h2>
 <ul>
-  <li><strong>RHEL 8 standard and FIPS builds:</strong> the RHEL 8 RPM has <code>drra-standard</code>, with OpenSSL 3.5.9 and libcurl 8.23.0 built in and hybrid post-quantum key exchange (X25519MLKEM768, then X25519 and P-256), and <code>drra-fips</code> on RHEL 8's own OpenSSL 1.1.1, which follows the crypto policy and FIPS mode. Installing picks the FIPS build in FIPS mode; the standard build will not run in FIPS mode. See <a href="install.html#rhel8">Install</a>.</li>
+  <li><strong>Two RHEL 8 packages,</strong> like DataReel's other products: <code>linux_reporting_agent</code> on RHEL 8's own OpenSSL 1.1.1, which follows the crypto policy and FIPS mode, and <code>linux_reporting_agent-openssl35</code>, with OpenSSL 3.5.9 and libcurl 8.23.0 built in, hybrid post-quantum key exchange (X25519MLKEM768 first) and the system crypto policy applied to its own OpenSSL. The openssl35 package will not install or run in FIPS mode. Switch with <code>dnf install --allowerasing</code>. See <a href="install.html#rhel8">Install</a>.</li>
   <li>The RHEL 9 and 10 RPMs need <code>openssl-libs</code> 3.5 or later.</li>
   <li><strong>TLS 1.2 or later</strong> for every connection, whatever the host's crypto policy allows. <code>[https] tls_groups</code> sets the key exchange groups.</li>
   <li>The log line of each upload and registration names the TLS version, cipher and key exchange group.</li>
-  <li><strong><code>drra selftest [URL]</code>:</strong> the build, OpenSSL, libcurl and FIPS mode and, with a URL, the TLS version, cipher and key exchange group of a test connection.</li>
+  <li><strong><code>drra selftest [URL]</code>:</strong> the build, OpenSSL, libcurl, FIPS mode and crypto policy and, with a URL, the TLS version, cipher and key exchange group of a test connection.</li>
   <li>The RPM build fails unless each binary uses the OpenSSL it must (<code>tools/check_openssl.sh</code>, <code>make check-openssl</code>).</li>
   <li><strong>Security design white paper and AI-assisted guide:</strong> <a href="security_design.html">docs/security_design.html</a> describes the trust between the parts, every server check, TLS and the two RHEL 8 builds, cryptography and FIPS, quantum computing (what is and is not quantum-resistant) and the limits. <code>AGENTS.md</code>, with <code>CLAUDE.md</code> and <code>GEMINI.md</code>, is the <a href="https://datareel.com/linux_reporting_agent/ai_assisted_guide.php">AI-assisted guide</a>. The RPM installs them in <code>/usr/share/doc/linux_reporting_agent</code>.</li>
 </ul>

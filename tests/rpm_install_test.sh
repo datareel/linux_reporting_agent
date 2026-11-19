@@ -40,7 +40,9 @@ check() {
     [ ! -e /var/lib/alternatives/drra ] || fail "an alternatives entry is left"
     b=$(build)
     case "${b}" in "$2"*) ;; *) fail "selftest Build: '${b}', want '$2'";; esac
-    rpm -V "$1" || fail "rpm -V $1"
+    # Config files the test changed on purpose (drra.ini) are left out
+    v=$(rpm -V "$1" | grep -v ' c ' || :)
+    [ -z "${v}" ] || { echo "${v}"; fail "rpm -V $1"; }
     echo "PASS - $1: ${b}"
 }
 remove_all() {
@@ -56,9 +58,13 @@ case "$2" in
 	remove_all
 	if [ "$1" = 1 ]; then
 	    if inst /t/o35.rpm; then fail "openssl35 installed in FIPS mode"; fi
-	    grep -q "FIPS mode is on" /tmp/dnf.log || { tail /tmp/dnf.log; fail "no FIPS message"; }
+	    grep -q "Error in PREIN scriptlet" /tmp/dnf.log || { tail /tmp/dnf.log; fail "dnf: no %pre failure"; }
 	    rpm -q linux_reporting_agent-openssl35 > /dev/null && fail "openssl35 left installed"
-	    echo "PASS - openssl35 refused: $(grep -m1 'FIPS mode is on' /tmp/dnf.log | sed 's/^ *//')"
+	    # rpm shows the %pre message that dnf -q keeps to itself
+	    if rpm -i --nodeps /t/o35.rpm > /tmp/rpm.log 2>&1; then fail "rpm installed openssl35 in FIPS mode"; fi
+	    grep -q "FIPS mode is on" /tmp/rpm.log || { cat /tmp/rpm.log; fail "no FIPS message"; }
+	    rpm -q linux_reporting_agent-openssl35 > /dev/null && fail "openssl35 left installed"
+	    echo "PASS - openssl35 refused: $(grep -m1 'FIPS mode is on' /tmp/rpm.log | sed 's/^ *//')"
 	else
 	    inst /t/o35.rpm || { tail /tmp/dnf.log; fail "install"; }
 	    check linux_reporting_agent-openssl35 "openssl35"

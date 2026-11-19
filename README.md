@@ -220,11 +220,13 @@ Each host has its own RSA 3072 key and certificate, registers before its
 first report, and signs every upload; the server keeps reports only from
 approved hosts, refuses replays and old timestamps, and saves a report
 only under the name of the host that signed it. Uploads use TLS 1.2 or
-later. The RHEL 8 RPM has two builds: `drra-standard` (OpenSSL 3.5.9
-built in, hybrid post-quantum key exchange X25519MLKEM768, then X25519
-and P-256) and `drra-fips` (RHEL 8's FIPS OpenSSL 1.1.1, for hosts in
-FIPS mode); `drra selftest [URL]` shows the build, the OpenSSL and the
-key exchange group.
+later. RHEL 8 has two packages, like DataReel's other products:
+`linux_reporting_agent` (RHEL 8's FIPS OpenSSL 1.1.1, for hosts in FIPS
+mode) and `linux_reporting_agent-openssl35` (OpenSSL 3.5.9 built in,
+follows the crypto policy, hybrid post-quantum key exchange
+X25519MLKEM768 first; it will not install or run in FIPS mode); switch
+with `dnf install --allowerasing`. `drra selftest [URL]` shows the build,
+the OpenSSL, the crypto policy and the key exchange group.
 
 The security design white paper, `docs/security_design.html` (also at
 <https://datareel.com/linux_reporting_agent/security_design.php>),
