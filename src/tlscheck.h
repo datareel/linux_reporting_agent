@@ -8,10 +8,9 @@
 #include <curl/curl.h>
 #include "common.h"
 
-// Where the RHEL 8 RPM puts the two builds; /usr/sbin/drra is an
-// alternatives link to one of them
-#define AGENT_STANDARD_BINARY "/usr/libexec/drra/drra-standard"
-#define AGENT_FIPS_BINARY "/usr/libexec/drra/drra-fips"
+// The RHEL 8 package for hosts in FIPS mode (the system OpenSSL 1.1.1);
+// the openssl35 package refuses to run in FIPS mode
+#define AGENT_FIPS_PACKAGE "linux_reporting_agent"
 
 // Prints the build, OpenSSL and libcurl in use and, when url is set, the
 // TLS version, cipher and key exchange group of a connection to it.

@@ -23,6 +23,7 @@
 #include "agent_auth.h"
 #include "compat.h"
 #include "tlscheck.h"
+#include "cryptopolicy.h"
 
 // TLS version, cipher and key exchange group of the last HTTPS request
 static std::string g_last_tls;
@@ -288,6 +289,7 @@ int HttpPostMultipart(const AgentConfig &cfg, const std::string &path, const For
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
   AgentCurlProtocols(curl, false);
   AgentCurlTls(curl, cfg.tls_groups);
+  AgentCurlCryptoPolicy(curl, cfg);
   // Never follow redirects: a signed request goes only where it was meant to
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
   if(cfg.use_https) {

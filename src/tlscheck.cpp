@@ -29,6 +29,7 @@
 #include "common.h"
 #include "compat.h"
 #include "tlscheck.h"
+#include "cryptopolicy.h"
 
 // The oldest OpenSSL a standard (not FIPS) build may use: 3.5.0, the 3.5 LTS
 #define AGENT_MIN_OPENSSL 0x30500000L
@@ -134,13 +135,22 @@ int TlsSelfTest(const std::string &url, const AgentConfig &cfg)
   }
 #if defined(DRRA_BUNDLED_OPENSSL)
   if(fips) {
-    printf("ERROR - this build's OpenSSL is not FIPS validated and does not run in FIPS mode:\n"
-	   "        use the FIPS build (alternatives --set drra %s)\n", AGENT_FIPS_BINARY);
+    printf("ERROR - this package's OpenSSL is not FIPS validated and does not run in FIPS mode:\n"
+	   "        install the %s package instead\n", AGENT_FIPS_PACKAGE);
     errors++;
   }
 #endif
 #endif
-  printf("TLS groups:      %s\n", cfg.tls_groups.empty() ? "(OpenSSL and crypto policy defaults)" : cfg.tls_groups.c_str());
+  std::string policy = CryptoPolicySummary(cfg);
+  if(!policy.empty()) printf("%s\n", policy.c_str());
+  const CryptoPolicy *cp = SystemCryptoPolicy(cfg);
+  std::string groups = !cfg.tls_groups.empty() ? cfg.tls_groups + " ([https] tls_groups)" :
+    (cp && !cp->groups.empty()) ? cp->groups + " (crypto policy)" :
+    cp ? std::string("OpenSSL 3.5 defaults (X25519MLKEM768 first)") : std::string("(OpenSSL and crypto policy defaults)");
+  printf("TLS groups:      %s\n", groups.c_str());
+  if(cp && !cp->not_applied.empty()) {
+    printf("WARNING - crypto policy settings OpenSSL 3.5 did not take, see above\n");
+  }
 
   curl_version_info_data *cv = curl_version_info(CURLVERSION_NOW);
   printf("libcurl:         %s (%s)\n", cv->version, cv->ssl_version ? cv->ssl_version : "no TLS");
@@ -172,6 +182,7 @@ int TlsSelfTest(const std::string &url, const AgentConfig &cfg)
     if(!cfg.ca_file.empty()) curl_easy_setopt(curl, CURLOPT_CAINFO, cfg.ca_file.c_str());
     AgentCurlProtocols(curl, true);
     AgentCurlTls(curl, cfg.tls_groups);
+    AgentCurlCryptoPolicy(curl, cfg);
     AgentCurlTlsCapture(curl, &summary);
     CURLcode rc = curl_easy_perform(curl);
     long http = 0;

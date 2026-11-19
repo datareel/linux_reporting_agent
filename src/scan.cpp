@@ -27,6 +27,7 @@
 #include "collect.h"
 #include "scan.h"
 #include "compat.h"
+#include "cryptopolicy.h"
 
 // One security advisory that applies to this host
 struct Advisory {
@@ -120,6 +121,7 @@ static int DownloadIfChanged(const AgentConfig &cfg, const std::string &url, con
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
   AgentCurlProtocols(curl, true);
   AgentCurlTls(curl, cfg.tls_groups);
+  AgentCurlCryptoPolicy(curl, cfg);
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, 600L);
   curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
   curl_easy_setopt(curl, CURLOPT_FILETIME, 1L);

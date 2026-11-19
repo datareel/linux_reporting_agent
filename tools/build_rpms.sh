@@ -17,11 +17,12 @@
 #
 # Builds from the committed tree (git archive HEAD), so commit first.
 #
-# The RPM %check runs tools/check_openssl.sh: RHEL 9/10 and the RHEL 8
-# standard build use OpenSSL 3.5 or later, the RHEL 8 FIPS build RHEL 8's
-# OpenSSL 1.1.1. The RHEL 8 standard build has OpenSSL and libcurl built
+# RHEL 8 gets two packages: linux_reporting_agent (RHEL 8's FIPS OpenSSL
+# 1.1.1) and linux_reporting_agent-openssl35 (OpenSSL 3.5 and libcurl built
 # in from tarballs downloaded once into output/ and checked against
-# tools/bundled.sha256.
+# tools/bundled.sha256). The RPM %check runs tools/check_openssl.sh: RHEL
+# 9/10 and the openssl35 package use OpenSSL 3.5 or later, the RHEL 8
+# package RHEL 8's OpenSSL 1.1.1.
 
 set -e
 TOP="$(cd "$(dirname "$0")/.." && pwd)"
@@ -78,12 +79,16 @@ esac
 for rel in ${RELEASES}; do
     echo "Building RHEL ${rel} RPM"
     if [ "${rel}" = 8 ]; then
-	# drra-standard builds OpenSSL (perl) and curl; drra-fips uses the system ones
+	# linux_reporting_agent uses the system OpenSSL 1.1.1 and libcurl;
+	# linux_reporting_agent-openssl35 builds OpenSSL (perl) and curl
 	DEVEL="openssl-devel libcurl-devel perl-interpreter perl-IPC-Cmd perl-Data-Dumper perl-Time-Piece"
 	EXTRA="for t in ${BUNDLED}; do cp /out/\$t ~/rpmbuild/SOURCES/; done"
+	# The second RHEL 8 package: OpenSSL 3.5 and libcurl built in
+	EXTRA_BUILD="rpmbuild -bb --quiet --define \"_smp_mflags -j${JOBS:-4}\" --define \"openssl35 1\" /spec/${NAME}.spec"
     else
 	DEVEL="openssl-devel libcurl-devel"
 	EXTRA=":"
+	EXTRA_BUILD=":"
     fi
     # Rootless podman here has no subuids, so ignore chown errors
     # A fixed build host name, recorded in the RPM header
@@ -96,6 +101,7 @@ mkdir -p ~/rpmbuild/SOURCES
 cp /out/${NAME}-${VERSION}.tar.gz ~/rpmbuild/SOURCES/
 ${EXTRA}
 rpmbuild -bb --quiet --define \"_smp_mflags -j${JOBS:-4}\" /spec/${NAME}.spec
+${EXTRA_BUILD}
 cp ~/rpmbuild/RPMS/*/${NAME}-*.rpm /out/
 "
 done

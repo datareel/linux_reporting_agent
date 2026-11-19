@@ -33,6 +33,7 @@
 #include "hooks.h"
 #include "uploads.h"
 #include "tlscheck.h"
+#include "cryptopolicy.h"
 
 static volatile sig_atomic_t g_stop = 0;
 static volatile sig_atomic_t g_wake = 0;
@@ -126,6 +127,9 @@ static int RunService(const std::string &ini_path)
   LoadAgentConfig(cfg, ini_path, output);
   LogMessage(cfg, output + AGENT_NAME " " AGENT_VERSION " started, reporting every " +
 	     std::to_string(cfg.report_interval_minutes) + " minutes");
+  // The openssl35 package: which crypto policy settings its own OpenSSL took
+  std::string policy = CryptoPolicySummary(cfg);
+  if(!policy.empty()) LogMessage(cfg, policy);
 
   while(!g_stop) {
     // Settings are read again every cycle, a changed INI file needs no restart
@@ -195,9 +199,9 @@ int main(int argc, char **argv)
   // The standard build's own OpenSSL is not FIPS validated: in FIPS mode
   // only the FIPS build (RHEL 8's OpenSSL) may sign and send anything
   if(HostFipsEnabled() && command != "config" && command != "selftest" && command != "vercmp") {
-    std::string msg = "ERROR - FIPS mode is on (/proc/sys/crypto/fips_enabled = 1). This drra is the standard "
-      "build with its own OpenSSL 3.5, which is not FIPS validated, so it does not run in FIPS mode. "
-      "Switch to the FIPS build: alternatives --set drra " AGENT_FIPS_BINARY;
+    std::string msg = "ERROR - FIPS mode is on (/proc/sys/crypto/fips_enabled = 1). This drra is the openssl35 "
+      "package with its own OpenSSL 3.5, which is not FIPS validated, so it does not run in FIPS mode. "
+      "Install the RHEL 8 FIPS package instead: dnf install --allowerasing ./" AGENT_FIPS_PACKAGE "-<version>.el8.x86_64.rpm";
     LogMessage(cfg, msg);
     xmlCleanupParser();
     curl_global_cleanup();

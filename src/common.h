@@ -10,15 +10,19 @@
 #define AGENT_INI_FILE "/etc/drra/drra.ini"
 
 // Build variants (set by the RPM spec on RHEL 8):
-//   DRRA_BUNDLED_OPENSSL  standard: static OpenSSL 3.5 and libcurl built in,
-//                         hybrid post-quantum key exchange, no FIPS mode
-//   DRRA_FIPS_BUILD       FIPS: RHEL 8's own OpenSSL 1.1.1 and libcurl, so
-//                         crypto-policies and FIPS mode apply
+//   DRRA_BUNDLED_OPENSSL  linux_reporting_agent-openssl35: static OpenSSL 3.5
+//                         and libcurl built in, follows the crypto policy
+//                         (cryptopolicy.cpp), hybrid post-quantum key
+//                         exchange, no FIPS mode
+//   DRRA_FIPS_BUILD       linux_reporting_agent on RHEL 8: RHEL 8's own
+//                         OpenSSL 1.1.1 and libcurl, so crypto-policies and
+//                         FIPS mode apply
 //   neither               the system OpenSSL and libcurl (RHEL 9 and 10)
 #if defined(DRRA_BUNDLED_OPENSSL)
-#define AGENT_BUILD_VARIANT "standard (bundled OpenSSL)"
-// Hybrid ML-KEM first, then classic groups for servers without it
-#define AGENT_TLS_GROUPS_DEFAULT "X25519MLKEM768:X25519:P-256"
+#define AGENT_BUILD_VARIANT "openssl35 (bundled OpenSSL 3.5, follows the crypto policy)"
+// The crypto policy and OpenSSL 3.5 pick the groups (cryptopolicy.cpp):
+// X25519MLKEM768 first unless the policy is FIPS
+#define AGENT_TLS_GROUPS_DEFAULT ""
 #elif defined(DRRA_FIPS_BUILD)
 #define AGENT_BUILD_VARIANT "FIPS (system OpenSSL)"
 #define AGENT_TLS_GROUPS_DEFAULT ""

@@ -29,7 +29,7 @@ SYSCONFDIR ?= /etc
 UNITDIR    ?= /usr/lib/systemd/system
 DOCDIR     ?= $(PREFIX)/share/doc/linux_reporting_agent
 
-OBJS = src/drra.o src/common.o src/agent_auth.o src/collect.o src/deliver.o src/scan.o src/hooks.o src/uploads.o src/tlscheck.o
+OBJS = src/drra.o src/common.o src/agent_auth.o src/collect.o src/deliver.o src/scan.o src/hooks.o src/uploads.o src/tlscheck.o src/cryptopolicy.o
 
 all: drra
 
